@@ -17,7 +17,6 @@ lucid-memories/
 ├── ARCHITECTURE.md         # アーキテクチャ設計書（内部詳細・数理モデル・データフロー）
 ├── DEVELOPER_GUIDE.md      # 開発者ガイド: 文書先行の実装プロセスの流れ・起点の判定
 ├── pyproject.toml          # Python パッケージメタデータ & 依存定義
-├── requirements.txt        # pip 依存関係 (ladybug)
 ├── .gitignore              # Git 除外設定（DB・キャッシュ・一時ファイル）
 ├── .cursorignore           # Cursor インデックス除外設定（DB・バイナリ）
 │
@@ -67,17 +66,13 @@ lucid-memories/
 │       ├── web/            # 可視化 UI・運用コンソール
 │       │   ├── backend/      # ダッシュボード HTTP API・サービス
 │       │   ├── frontend/     # 正本運用コンソール (React 19 + TypeScript + Vite + Sonner)
-│       │   ├── dist/         # 組み込み配信アセット
-│       │   ├── dashboard.py  # HTTP サーバー (Port 8765)
-│       │   ├── dashboard.html# 組み込み軽量想起グラフビュー
-│       │   └── guide.html    # 用語・活性度仕様ガイド
+│       │   └── dashboard.py  # React アプリ配信用 HTTP サーバー (Port 8765)
 │       │
 │       └── runtime/        # 外部モデル・実行時ユーティリティ
 │           ├── embedding.py      # Ollama (nomic-embed-text) ベクトル生成
 │           ├── ladybug_runtime.py# Ladybug DB ネイティブ接続
 │           └── util.py           # 共通ユーティリティ（トークン見積もり等）
 │
-├── server.py               # ダッシュボード起動エントリーポイント
 ├── tests/                  # 単体・統合テストスイート
 ├── scripts/                # 運用・メンテナンス・移行スクリプト
 └── bin/                    # 実行用ラッパーシェル (bin/lucid-memories)
@@ -252,9 +247,8 @@ python src/lucid_memories/entrypoints/cli.py <cmd>
 ./bin/lucid-memories status
 
 # Webダッシュボードの起動（フル機能運用コンソール）
+# 初回のみ: cd src/lucid_memories/web/frontend && npm install && npm run build
 ./bin/lucid-memories dashboard --open
-# またはルートのスクリプトから直接起動
-python server.py
 
 # フロントエンド単体での開発時（Vite Hot Reload）
 cd src/lucid_memories/web/frontend

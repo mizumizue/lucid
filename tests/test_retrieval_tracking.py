@@ -19,7 +19,7 @@ class RetrievalTrackingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api
+        from lucid_memories.core import api
 
         self.api = api
         self.cid = "66666666-6666-6666-6666-666666666666"
@@ -74,7 +74,7 @@ class RetrievalTrackingTests(unittest.TestCase):
         self.assertGreater(hit["memory_score"], 0)
 
     def test_semantic_failure_is_recorded_as_error(self) -> None:
-        from lucid_memories import embedding
+        from lucid_memories.runtime import embedding
 
         with patch.object(embedding, "embed", side_effect=embedding.EmbeddingError("offline")):
             result = self.api.semantic_search(
@@ -106,7 +106,9 @@ class RetrievalTrackingTests(unittest.TestCase):
             conversation_id=self.cid,
             generation_id="generation-3",
         )
-        recalled = __import__("lucid_memories.graph", fromlist=["recall"]).recall(
+        from lucid_memories.core.graph import recall
+
+        recalled = recall(
             "no map match",
             workspace=self.ws,
             conversation_id=self.cid,
@@ -160,7 +162,7 @@ class RetrievalTrackingTests(unittest.TestCase):
         self.assertEqual(linked[-1]["request_id"], digest_requests[0]["id"])
 
     def test_mcp_search_propagates_attribution(self) -> None:
-        from lucid_memories import mcp_server
+        from lucid_memories.entrypoints import mcp_server
 
         result = mcp_server._call_tool(
             "search",

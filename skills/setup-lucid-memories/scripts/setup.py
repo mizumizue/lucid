@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
-import hashlib
 import json
 import os
 import shutil
@@ -73,17 +72,8 @@ def install_dependencies(repo_root: Path, skip_pip: bool = False) -> None:
         return
     log("Installing Python dependencies (editable mode)...")
     cmd = [sys.executable, "-m", "pip", "install", "-e", str(repo_root)]
-    try:
-        subprocess.check_call(cmd)
-        log("Dependencies installed successfully.")
-    except subprocess.CalledProcessError as e:
-        warn(f"pip install failed (exit {e.returncode}). Trying requirements.txt fallback...")
-        req = repo_root / "requirements.txt"
-        if req.exists():
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", str(req)])
-            log("Requirements installed successfully via fallback.")
-        else:
-            raise
+    subprocess.check_call(cmd)
+    log("Dependencies installed successfully.")
 
 
 def ensure_repo_placement(repo_root: Path) -> Path:
@@ -305,31 +295,14 @@ def ensure_persona(repo_root: Path) -> None:
         src_path = repo_root / "src"
         if str(src_path) not in sys.path:
             sys.path.insert(0, str(src_path))
-        try:
-            from lucid_memories.core import persona as persona_mod
-            raw_rules = json.loads(user_rules_json.read_text(encoding="utf-8"))
-            built = persona_mod.build_persona(raw_rules)
-            with open(persona_json, "w", encoding="utf-8") as f:
-                json.dump(built, f, ensure_ascii=False, indent=2)
-                f.write("\n")
-            log(f"Generated user-specific persona from rules: {persona_json}")
-        except Exception as exc:
-            warn(f"Failed to build persona using core module ({exc}), using standalone fallback.")
-            fallback = {
-                "schema_version": 1,
-                "scope": "user",
-                "workspace_root": None,
-                "token_budget": 8000,
-                "source": "lucid-memories-curated-user-rules",
-                "updated_at": now_str,
-                "sections": [],
-                "token_estimate": 0,
-                "content_hash": hashlib.sha256(now_str.encode("utf-8")).hexdigest(),
-            }
-            with open(persona_json, "w", encoding="utf-8") as f:
-                json.dump(fallback, f, ensure_ascii=False, indent=2)
-                f.write("\n")
-            log(f"Initialized fallback persona: {persona_json}")
+        from lucid_memories.core import persona as persona_mod
+
+        raw_rules = json.loads(user_rules_json.read_text(encoding="utf-8"))
+        built = persona_mod.build_persona(raw_rules)
+        with open(persona_json, "w", encoding="utf-8") as f:
+            json.dump(built, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        log(f"Generated user-specific persona from rules: {persona_json}")
     else:
         log(f"Existing persona found (preserved): {persona_json}")
 

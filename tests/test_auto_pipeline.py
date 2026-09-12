@@ -18,9 +18,8 @@ class AutoPipelineTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api
-        from lucid_memories import gate
-        from lucid_memories import hook
+        from lucid_memories.core import api, gate
+        from lucid_memories.entrypoints import hook
 
         self.api = api
         self.gate = gate
@@ -205,7 +204,7 @@ class AutoPipelineTests(unittest.TestCase):
         from io import BytesIO
         from unittest.mock import patch
 
-        from lucid_memories import mcp_server as mcp
+        from lucid_memories.entrypoints import mcp_server as mcp
 
         init = {
             "jsonrpc": "2.0",

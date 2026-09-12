@@ -103,7 +103,7 @@
 | **Core** | `core/` | `api.py`, `memory.py`, `graph.py`, `retrieval.py`, `persona.py`, `gate.py` | ドメインロジック、ユースケース、オーケストレーション、トランザクション境界、権限制御。 |
 | **Storage** | `storage/` | `db.py`, `schema.sql`, `blobs.py`, `paths.py` | SQLite 接続管理（WAL / FTS5）、マイグレーション、ファイルパス解決、CAS (Blob)。 |
 | **Runtime** | `runtime/` | `embedding.py`, `ladybug_runtime.py`, `util.py` | 外部サービス（Ollama）や C/ネイティブ拡張（Ladybug）のアダプタ、ユーティリティ。 |
-| **Web** | `web/` | `dashboard.py`, `dashboard.html`, `guide.html` | ローカル HTTP サーバ、関係グラフの可視化、用語・仕様ガイド。 |
+| **Web** | `web/` | `dashboard.py`, `backend/`, `frontend/` | React 運用コンソールの配信、HTTP API、関係グラフと用語・仕様ガイド。 |
 
 ---
 

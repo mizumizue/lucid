@@ -23,7 +23,7 @@ class MapRecallTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api, graph
+        from lucid_memories.core import api, graph
 
         self.api = api
         self.graph = graph
@@ -283,7 +283,7 @@ class MapRecallTests(unittest.TestCase):
         self.assertNotIn("SECRET_BODY_NOT_IN_GRAPH", body)
 
     def test_japanese_utterance_resolves_directive_via_fts(self) -> None:
-        from lucid_memories.util import fts_match_arg, useful_query_tokens
+        from lucid_memories.runtime.util import fts_match_arg, useful_query_tokens
 
         self._seed_relay()
         tokens = useful_query_tokens("relay を載せて")
@@ -358,7 +358,7 @@ class MapIsolationTests(unittest.TestCase):
     def test_map_path_is_not_charactor_lines(self) -> None:
         old = os.environ.pop("LUCID_MEMORIES_HOME", None)
         try:
-            from lucid_memories.paths import map_path
+            from lucid_memories.storage.paths import map_path
 
             path = map_path()
             charactor_lines = (

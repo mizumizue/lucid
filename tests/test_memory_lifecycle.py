@@ -17,7 +17,7 @@ class MemoryLifecycleTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api
+        from lucid_memories.core import api
 
         self.api = api
         self.cid = "44444444-4444-4444-4444-444444444444"

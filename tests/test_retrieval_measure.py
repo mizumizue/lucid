@@ -17,7 +17,7 @@ class RetrievalMeasureTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api, graph
+        from lucid_memories.core import api, graph
 
         self.api = api
         self.graph = graph
@@ -141,7 +141,7 @@ class RetrievalMeasureTests(unittest.TestCase):
         self.assertTrue(any(row.get("gaps") for row in summary["recent"]))
 
     def test_query_tokens_mixed_japanese(self) -> None:
-        from lucid_memories.util import query_tokens
+        from lucid_memories.runtime.util import query_tokens
 
         tokens = query_tokens("提案書き込みをして")
         self.assertNotIn("提案書", tokens)

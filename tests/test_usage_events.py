@@ -18,7 +18,8 @@ class UsageEventTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api, hook
+        from lucid_memories.core import api
+        from lucid_memories.entrypoints import hook
 
         self.api = api
         self.hook = hook
@@ -136,7 +137,7 @@ class UsageEventTests(unittest.TestCase):
         self.assertEqual(artifact[6], "managed_elsewhere")
 
     def test_agent_response_is_stored_in_lucid_memories_blob(self) -> None:
-        from lucid_memories import blobs
+        from lucid_memories.storage import blobs
 
         generated = "Generated design artifact\n" + ("content line\n" * 40)
         self.hook.handle_hook(

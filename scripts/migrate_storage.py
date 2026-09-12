@@ -12,9 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from lucid_memories import blobs  # noqa: E402
-from lucid_memories.db import connect, now_iso, record_runtime_log  # noqa: E402
-from lucid_memories.paths import (  # noqa: E402
+from lucid_memories.storage import blobs  # noqa: E402
+from lucid_memories.storage.db import connect, now_iso, record_runtime_log  # noqa: E402
+from lucid_memories.storage.paths import (  # noqa: E402
     blobs_dir,
     bus_home,
     db_path,

@@ -17,7 +17,8 @@ class EmbeddingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api, embedding
+        from lucid_memories.core import api
+        from lucid_memories.runtime import embedding
 
         self.api = api
         self.embedding = embedding
@@ -34,10 +35,12 @@ class EmbeddingTests(unittest.TestCase):
     def fake_embed(text: str):
         # Deterministic two-dimensional fixture: "SQLite" and "Cursor" are
         # intentionally orthogonal so cosine ranking is observable.
+        from lucid_memories.runtime.embedding import Embedding
+
         lower = text.lower()
         sqlite = 1.0 if "sqlite" in lower or "vector" in lower else 0.0
         cursor = 1.0 if "cursor" in lower or "agent" in lower else 0.0
-        return __import__("lucid_memories.embedding", fromlist=["Embedding"]).Embedding(
+        return Embedding(
             model="fixture",
             values=[sqlite, cursor],
         )

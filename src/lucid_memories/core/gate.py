@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -113,27 +114,12 @@ def mcp_permission(
 
 
 def _bus_subcommand(command: str) -> str | None:
-    tokens: list[str] = []
-    current: list[str] = []
-    in_q: str | None = None
-    for ch in command or "":
-        if in_q:
-            if ch == in_q:
-                in_q = None
-            else:
-                current.append(ch)
-        elif ch in {'"', "'"}:
-            in_q = ch
-        elif ch.isspace():
-            if current:
-                tokens.append("".join(current))
-                current = []
-        else:
-            current.append(ch)
-    if current:
-        tokens.append("".join(current))
+    try:
+        tokens = shlex.split(command or "", posix=False)
+    except ValueError:
+        tokens = (command or "").split()
     for i, tok in enumerate(tokens):
-        norm = tok.replace("\\", "/").lower()
+        norm = tok.strip("'\"").replace("\\", "/").lower()
         base = norm.rsplit("/", 1)[-1]
         looks_bus = _mentions_product(norm) or base in CLI_NAMES
         if not looks_bus:
@@ -142,13 +128,6 @@ def _bus_subcommand(command: str) -> str | None:
             nxt = tokens[i + 1]
             if not nxt.startswith("-"):
                 return nxt.lower()
-    match = re.search(
-        r"lucid-memories(?:[/\\]cli\.py)?[\"']?\s+(\w+)",
-        command or "",
-        re.I,
-    )
-    if match:
-        return match.group(1).lower()
     return None
 
 

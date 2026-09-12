@@ -18,7 +18,8 @@ class PersonaTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api, hook, persona
+        from lucid_memories.core import api, persona
+        from lucid_memories.entrypoints import hook
 
         self.api = api
         self.hook = hook

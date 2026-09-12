@@ -343,7 +343,7 @@ class ApiTests(unittest.TestCase):
                 thread.join()
                 server.server_close()
 
-    def test_guide_html_is_served(self) -> None:
+    def test_missing_frontend_build_is_not_found(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "bus.sqlite"
             sqlite3.connect(path).close()
@@ -356,9 +356,8 @@ class ApiTests(unittest.TestCase):
                 client.request("GET", "/guide")
                 response = client.getresponse()
                 body = response.read().decode("utf-8")
-                self.assertEqual(response.status, 200)
-                self.assertIn("text/html", response.headers.get("Content-Type", ""))
-                self.assertIn("lucid-memories", body)
+                self.assertEqual(response.status, 404)
+                self.assertIn("フロントエンドのビルドが見つかりません", body)
             finally:
                 server.shutdown()
                 thread.join()
@@ -391,7 +390,6 @@ class ApiTests(unittest.TestCase):
     def test_default_frontend_dist_resolves_web_directory(self) -> None:
         from lucid_memories.web.backend.config import default_frontend_dist
         dist_path = default_frontend_dist()
-        self.assertTrue(dist_path.exists(), f"Frontend dist does not exist: {dist_path}")
-        self.assertTrue((dist_path / "index.html").is_file(), f"index.html not found in {dist_path}")
+        self.assertEqual(dist_path.name, "dist")
 
 

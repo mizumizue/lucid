@@ -85,10 +85,9 @@ def handler_factory(settings: Settings):
             return hmac.compare_digest(supplied, settings.dashboard_token)
 
         def handle_api(self, path: str, params: dict[str, list[str]]) -> None:
-            if path.startswith("/api/v1/"):
-                self.handle_v1(path.removeprefix("/api/v1/").strip("/"), params)
-                return
-            self.handle_legacy(path, params)
+            if not path.startswith("/api/v1/"):
+                raise ApiError(HTTPStatus.NOT_FOUND, "Not Found", "API が見つかりません。")
+            self.handle_v1(path.removeprefix("/api/v1/").strip("/"), params)
 
         def handle_v1(self, resource: str, params: dict[str, list[str]]) -> None:
             if resource == "health":
@@ -169,51 +168,6 @@ def handler_factory(settings: Settings):
                 return
             raise ApiError(HTTPStatus.NOT_FOUND, "Not Found", "リソースが見つかりません。")
 
-        def handle_legacy(self, path: str, params: dict[str, list[str]]) -> None:
-            query = query_from_params(params)
-            if path == "/api/overview":
-                self.send_json(service.overview())
-            elif path == "/api/sessions":
-                payload = service.sessions(query)
-                self.send_json({"sessions": payload["data"], "pagination": payload["pagination"]})
-            elif path.startswith("/api/sessions/"):
-                self.send_json(service.session(unquote(path.removeprefix("/api/sessions/"))))
-            elif path == "/api/jobs":
-                payload = service.jobs(query)
-                self.send_json({"jobs": payload["data"], "pagination": payload["pagination"]})
-            elif path == "/api/index":
-                events = service.events(query)
-                artifacts = service.artifacts(query)
-                self.send_json(
-                    {
-                        "events": events["data"],
-                        "artifacts": artifacts["data"],
-                        "counts": {
-                            "events": events["pagination"]["total"],
-                            "artifacts": artifacts["pagination"]["total"],
-                        },
-                    }
-                )
-            elif path == "/api/graph":
-                raw_limit = first(params, "limit")
-                graph = service.recall_graph(
-                    workspace=first(params, "workspace") or None,
-                    conversation_id=(
-                        first(params, "conversation_id")
-                        or first(params, "conversation")
-                        or None
-                    ),
-                    since=first(params, "since") or None,
-                    until=first(params, "until") or None,
-                    limit=positive_int(params, "limit", 200, 10_000) if raw_limit else 200,
-                )
-                self.send_json(graph)
-            elif path == "/api/daily":
-                daily = service.daily(daily_days(params))
-                self.send_json({"days": daily["data"], "meta": daily["meta"]})
-            else:
-                raise ApiError(HTTPStatus.NOT_FOUND, "Not Found", "API が見つかりません。")
-
         def send_json(self, payload: dict, status: int = HTTPStatus.OK) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(status)
@@ -241,40 +195,17 @@ def handler_factory(settings: Settings):
             self.wfile.write(body)
 
         def serve_frontend(self, requested_path: str) -> None:
-            clean_path = requested_path.strip("/")
             dist = settings.frontend_dist
-            dist_index = safe_path(dist, "index.html")
-
-            # If SPA frontend build exists, let React Router handle /guide client-side.
-            # If SPA build is absent, fallback to legacy guide.html for /guide.
-            if clean_path == "guide" and (dist_index is None or not dist_index.is_file()):
-                guide_path = Path(__file__).resolve().parent.parent / "guide.html"
-                if guide_path.is_file():
-                    body = guide_path.read_bytes()
-                    self.send_response(HTTPStatus.OK)
-                    self.send_header("Content-Type", "text/html; charset=utf-8")
-                    self.send_header("Content-Length", str(len(body)))
-                    self.send_header("Cache-Control", "no-store")
-                    self.end_headers()
-                    self.wfile.write(body)
-                    return
 
             relative = requested_path.removeprefix("/").strip()
             if not relative:
                 relative = "index.html"
             candidate = safe_path(dist, relative)
-            if candidate is None or not candidate.is_file():
-                legacy = safe_path(settings.frontend_dist.parent.parent / "static", relative)
-                candidate = legacy if legacy and legacy.is_file() else None
-            if candidate is None and "." not in Path(relative).name:
+            if (candidate is None or not candidate.is_file()) and "." not in Path(relative).name:
                 candidate = safe_path(dist, "index.html")
             if candidate is None or not candidate.is_file():
-                single_html = Path(__file__).resolve().parent.parent / "dashboard.html"
-                if single_html.is_file() and (not relative or relative == "index.html"):
-                    candidate = single_html
-                else:
-                    self.send_problem(ApiError(HTTPStatus.NOT_FOUND, "Not Found", "ページが見つかりません。"))
-                    return
+                self.send_problem(ApiError(HTTPStatus.NOT_FOUND, "Not Found", "フロントエンドのビルドが見つかりません。"))
+                return
             body = candidate.read_bytes()
             content_type = mimetypes.guess_type(candidate.name)[0] or "application/octet-stream"
             if candidate.suffix == ".js":

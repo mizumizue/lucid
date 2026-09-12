@@ -265,7 +265,7 @@ class DashboardRepository:
             inserted = True
         database = connection = None
         try:
-            from lucid_memories.ladybug_runtime import connect as connect_map
+            from lucid_memories.runtime.ladybug_runtime import connect as connect_map
 
             database, connection = connect_map(map_path, read_only=True)
             table_result = connection.execute("CALL show_tables() RETURN *")

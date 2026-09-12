@@ -1,12 +1,9 @@
 """Retrieval relationship graph and local dashboard tests."""
 from __future__ import annotations
 
-import json
 import os
 import tempfile
-import threading
 import unittest
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +17,7 @@ class DashboardTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api
+        from lucid_memories.core import api
 
         self.api = api
         self.cid = "55555555-5555-5555-5555-555555555555"
@@ -188,60 +185,6 @@ class DashboardTests(unittest.TestCase):
         ]
         self.assertEqual(len(recalled_edges), 1)
         self.assertEqual(recalled_edges[0]["count"], 2)
-
-    def test_dashboard_http_endpoint_returns_graph_json(self) -> None:
-        self._seed_log()
-        from lucid_memories import dashboard
-        from http.server import ThreadingHTTPServer
-
-        handler = dashboard._handler(
-            workspace=self.ws,
-            conversation_id=None,
-            since=None,
-            until=None,
-            limit=200,
-        )
-        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            url = f"http://127.0.0.1:{server.server_port}/api/graph"
-            with urllib.request.urlopen(url, timeout=3) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            self.assertTrue(payload["ok"], payload)
-            self.assertEqual(payload["meta"]["log_count"], 1)
-
-            # Test root HTML serves dashboard
-            root_url = f"http://127.0.0.1:{server.server_port}/"
-            with urllib.request.urlopen(root_url, timeout=3) as response:
-                self.assertEqual(response.status, 200)
-                html = response.read().decode("utf-8")
-                self.assertIn("lucid-memories 想起グラフ", html)
-                self.assertIn("用語・使い方ガイド", html)
-                self.assertIn("quick-guide-dialog", html)
-                # Enhanced UI elements (Sonner toast, metrics cards, search, highlight)
-                self.assertIn('id="sonner-toaster"', html)
-                self.assertIn('id="metrics-grid"', html)
-                self.assertIn('id="keyword-search"', html)
-                self.assertIn('id="reset-filters"', html)
-                self.assertIn(".highlighted", html)
-                self.assertIn(".dimmed", html)
-                self.assertIn("copyToClipboard", html)
-
-            # Test /guide endpoint serves guide page
-            guide_url = f"http://127.0.0.1:{server.server_port}/guide"
-            with urllib.request.urlopen(guide_url, timeout=3) as response:
-                self.assertEqual(response.status, 200)
-                guide_html = response.read().decode("utf-8")
-                self.assertIn("lucid-memories 用語・機能ガイド", guide_html)
-                self.assertIn("用語辞典", guide_html)
-                self.assertIn("想起 (Recall / Retrieval)", guide_html)
-                self.assertIn("表示温度", guide_html)
-        finally:
-            server.shutdown()
-            server.server_close()
-            thread.join(timeout=3)
-
 
 if __name__ == "__main__":
     unittest.main()

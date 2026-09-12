@@ -43,15 +43,11 @@ def main(argv: list[str] | None = None) -> int:
     p_dashboard = sub.add_parser(
         "dashboard",
         parents=[shared],
-        help="serve the local retrieval relationship dashboard and guide (/guide)",
+        help="serve the local dashboard",
     )
     p_dashboard.add_argument("--host", default="127.0.0.1")
     p_dashboard.add_argument("--port", type=int, default=8765)
-    p_dashboard.add_argument("--since", default=None)
-    p_dashboard.add_argument("--until", default=None)
-    p_dashboard.add_argument("--limit", type=int, default=200)
     p_dashboard.add_argument("--open", dest="open_browser", action="store_true")
-    p_dashboard.add_argument("--graph-only", dest="graph_only", action="store_true", help="Serve lightweight single-file recall graph only")
 
     p_search = sub.add_parser("search", parents=[shared])
     p_search.add_argument("query")
@@ -246,13 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         return dashboard.run_dashboard(
             host=args.host,
             port=args.port,
-            workspace=ws,
-            conversation_id=cid,
-            since=args.since,
-            until=args.until,
-            limit=args.limit,
             open_browser=args.open_browser,
-            console=not getattr(args, "graph_only", False),
         )
     elif cmd == "search":
         _print(

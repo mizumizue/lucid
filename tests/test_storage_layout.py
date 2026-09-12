@@ -19,8 +19,10 @@ class StorageLayoutTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
-        from lucid_memories import api, blobs, hook
-        from lucid_memories.paths import db_path, map_path
+        from lucid_memories.core import api
+        from lucid_memories.entrypoints import hook
+        from lucid_memories.storage import blobs
+        from lucid_memories.storage.paths import db_path, map_path
 
         self.api = api
         self.blobs = blobs

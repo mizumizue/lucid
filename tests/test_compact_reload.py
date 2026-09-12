@@ -20,7 +20,7 @@ class CompactReloadTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         os.environ["LUCID_MEMORIES_HOME"] = self.tmp.name
         # Import after HOME is set so paths resolve to temp.
-        from lucid_memories import api
+        from lucid_memories.core import api
 
         self.api = api
         self.cid = "11111111-1111-1111-1111-111111111111"
@@ -165,7 +165,7 @@ class CompactReloadTests(unittest.TestCase):
         )
 
     def test_normalize_msys_path(self) -> None:
-        from lucid_memories.util import normalize_root, workspace_matches
+        from lucid_memories.runtime.util import normalize_root, workspace_matches
 
         win = normalize_root(r"C:\workspace\Alice Smith")
         msys = normalize_root("/c/workspace/Alice Smith")
@@ -177,7 +177,7 @@ class CompactReloadTests(unittest.TestCase):
         self.assertFalse(workspace_matches([alice_smith], alice))
 
     def test_hook_precompact_and_digest(self) -> None:
-        from lucid_memories.hook import handle_hook
+        from lucid_memories.entrypoints.hook import handle_hook
 
         hook_cid = "33333333-3333-3333-3333-333333333333"
         before_prompt = handle_hook(
