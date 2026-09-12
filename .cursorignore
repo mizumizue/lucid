@@ -1,0 +1,32 @@
+# Database & binary graph stores (prevent context noise and high indexing load)
+.db/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.lbdb
+blobs/
+logs/
+*.log
+
+# User-specific persistent persona & rules
+persona/
+
+# Python cache & virtual environments
+__pycache__/
+**/*.pyc
+.venv/
+venv/
+env/
+
+# Distribution & test caches
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Temporary & scratch directories
+.scratch/
+*.tmp
+*.bak

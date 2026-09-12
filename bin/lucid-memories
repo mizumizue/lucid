@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY=""
+for candidate in \
+  "$HOME/AppData/Local/Python/pythoncore-3.14-64/python.exe" \
+  "$HOME/AppData/Local/Python/bin/python.exe" \
+  python \
+  python3
+do
+  if [[ -x "$candidate" ]] || command -v "$candidate" >/dev/null 2>&1; then
+    PY="$candidate"
+    break
+  fi
+done
+if [[ -z "$PY" ]]; then
+  echo '{"ok":false,"error":"python not found"}' >&2
+  exit 1
+fi
+export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PY" "$ROOT/src/lucid_memories/entrypoints/cli.py" "$@"

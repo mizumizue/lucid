@@ -1,0 +1,83 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.vitest/
+frontend/.vitest/
+src/lucid_memories/web/frontend/.vitest/
+
+# Frontend dependencies & package managers
+node_modules/
+frontend/node_modules/
+src/lucid_memories/web/frontend/node_modules/
+
+# Local databases & runtime storage (auto-generated at runtime)
+.db/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.lbdb
+blobs/
+logs/
+*.log
+
+# User-specific persistent persona & rules (auto-generated at setup)
+persona/*.json
+!persona/.gitkeep
+
+# Sensitive personal & environment credentials (never track in git)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+id_rsa
+id_rsa*
+id_ed25519
+id_ed25519*
+credentials.json
+token.json
+client_secret*.json
+*.local.*
+config.local.*
+local_settings.py
+
+# Cursor project caches & agent artifacts
+.cursor/projects/
+.cursor/terminals/
+.cursor/browser-logs/
+.cursor/debug-logs/
+.cursor/ai-tracking/
+.cursor/outputs/
+.cursor/*.tmp
+.cursor/statsig-cache.json*
+.cursor/argv.json
+.cursor/cli-config.json
+.cursor/ide_state.json
+
+# Engineering skills scratchpad
+.scratch/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+desktop.ini

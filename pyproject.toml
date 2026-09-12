@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lucid-memories"
+version = "0.1.0"
+description = "Cursor agents shared memories and knowledge graph system"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "lucid-memories developers" }
+]
+dependencies = [
+    "ladybug>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+lucid-memories = "lucid_memories.entrypoints.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

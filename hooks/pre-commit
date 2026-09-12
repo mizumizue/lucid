@@ -1,0 +1,25 @@
+#!/bin/sh
+# Git pre-commit hook to prevent sensitive / personal files from being committed.
+# Configured for lucid-memories privacy rules.
+
+# Resolve Python interpreter
+if command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+elif command -v python >/dev/null 2>&1; then
+    PY="python"
+elif [ -n "$PYTHON_EXE" ] && [ -x "$PYTHON_EXE" ]; then
+    PY="$PYTHON_EXE"
+else
+    echo "[privacy-hook:warn] Python not found; skipping privacy pre-commit check."
+    exit 0
+fi
+
+# Locate privacy_gate module or script
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$REPO_ROOT" ]; then
+    exit 0
+fi
+
+export PYTHONPATH="$REPO_ROOT/src:$PYTHONPATH"
+"$PY" -m lucid_memories.core.privacy_gate
+exit $?

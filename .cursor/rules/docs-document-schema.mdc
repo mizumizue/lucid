@@ -1,0 +1,211 @@
+---
+description: docs 配下の要件・仕様・設計・ADR・品質保証の文書スキーマ
+globs: docs/**/*.md
+alwaysApply: false
+---
+
+# Documentation Schema
+
+`docs/` 配下の文書は、1ファイル1成果物とし、機械的にパースできる形式を守る。
+
+## Directory and identity
+
+| Directory | `kind` | ID prefix |
+|---|---|---|
+| `docs/needs/` | `need` | `NEED-` |
+| `docs/actors/` | `actor` | `ACT-` |
+| `docs/usecases/` | `use_case` | `UC-` |
+| `docs/requirements/` | `requirement` | `REQ-` |
+| `docs/specifications/` | `specification` | `SPEC-` |
+| `docs/design/` | `design` | `DSN-` |
+| `docs/decisions/` | `decision` | `ADR-` |
+| `docs/quality/` | `quality_assurance` | `QA-` |
+| `docs/test-cases/` | `test_case` | `TC-` |
+
+- ファイル名は ID と一致させる（例: `docs/needs/NEED-0001.md`, `docs/requirements/REQ-0001.md`）。
+- ID は `docs/` 配下で一意にし、形式は `<PREFIX>-<4桁以上の連番>` とする。
+- ディレクトリと `kind` の対応を崩さない。
+- 1ファイルには1つの要求、アクター、ユースケース、要件、仕様、設計事項、ADR、品質保証事項、
+  またはテストケースだけを記載する。
+
+## File format
+
+すべてのファイルは YAML フロントマターと Markdown 本文で構成する。フロントマターの終了
+`---` より前には定義済みメタデータだけを置き、終了後は必ず `## Content` を1つ置く。
+
+必須メタデータ:
+
+```yaml
+---
+schema_version: 3
+id: REQ-0001
+kind: requirement
+title: 利用者が記憶を検索できる
+status: draft
+created: "2026-09-11"
+updated: "2026-09-11"
+scope: local
+depends_on: []
+tags: []
+links: []
+---
+## Content
+
+利用者はキーワードで保存済みの記憶を検索できる。
+```
+
+- `schema_version`, `id`, `kind`, `title`, `status`, `created`, `updated`, `scope`,
+  `depends_on`, `tags`, `links` を必須とする。
+- `schema_version` は整数とし、現在は `3` を使用する。
+- `id` は `^(NEED|ACT|UC|REQ|SPEC|DSN|ADR|QA|TC)-[0-9]{4,}$` に一致させる。
+- `kind` は `need`, `actor`, `use_case`, `requirement`, `specification`, `design`, `decision`,
+  `quality_assurance`, `test_case` のいずれかとする。
+- `created` と `updated` は ISO 8601 の日付（`YYYY-MM-DD`）とする。
+- `scope` は `local` または `cross_cutting` とし、`cross_cutting` は `design` または
+  `quality_assurance` で使用できる。
+- `status` は `draft`, `proposed`, `accepted`, `rejected`, `superseded`, `deprecated`
+  のいずれかとする。
+- `depends_on`, `tags`, `links` は常に YAML 配列とする。値がなければ `[]` とする。
+
+## Granularity and content
+
+文書の粒度は「独立して理解・変更・検証できる最小の意味単位」とする。1ファイルに複数の
+役割、シナリオ、成果、振る舞い、構造上の決定を混在させない。
+
+- 独立した要求、アクター、目的、トリガー、成果、受け入れ条件、変更理由、または依存先がある場合は分割する。
+- 「AとB」「AまたはB」のように独立した成果を列挙しない。ただし、同じ成果を検証するための
+  複数の受け入れ条件は1つの要件にまとめてよい。
+- 1つの文書を個別に承認・却下・置換できる場合は、原則として別ファイルにする。
+- N:M の依存は、複数の依存先が同じ1つの成果や契約を定義する場合だけ許可する。
+  粒度の粗さを依存関係で隠してはならない。
+- `actor` は1つの役割または外部システム、`use_case` は1つのアクターの目的とシナリオに分割する。
+
+`## Content` 配下には `kind` ごとに次の見出しをこの順序で置く。見出し名はパーサーが
+識別できるよう変更しない。
+
+- `need`: `### Background`、`### Problem`、`### Desired Outcome`
+- `actor`: `### Role`、`### Responsibilities`、`### Interactions`
+- `use_case`: `### Goal`、`### Trigger`、`### Preconditions`、`### Main Flow`、
+  `### Alternative Flows`、`### Postconditions`
+- `requirement`: `### Statement`、`### Acceptance Criteria`
+- `specification`: `### Contract`、`### Inputs`、`### Outputs`、`### Errors`、`### Constraints`
+- `design`: `### Decision`、`### Structure`、`### Data Flow`、`### Trade-offs`
+- `decision`: `### Context`、`### Decision`、`### Consequences`
+- `quality_assurance`: `### Objective`、`### Quality Criteria`、`### Verification`、
+  `### Evidence`、`### Exit Criteria`
+- `test_case`: `### Objective`、`### Preconditions`、`### Steps`、
+  `### Expected Results`、`### Evidence`
+
+各種別の記述規則:
+
+- `need` はステークホルダー（利用者、顧客、業務）が抱える背景・動機、解決したい課題、
+  および期待する成果（要求）を記述する。実装手段や個別の機能要件は書かない。
+  1ファイルにつき1つの要求を記述し、複数の独立した要件（`requirement`）へと分解する（1:N）。
+- `actor` は個人名ではなく、システムと関わる役割または外部システム（Cursor IDE、ローカル推論基盤、外部サービス等）を記述する。
+  複数の役割や責務を持ち、独立して扱うべき場合は分割する。
+- `use_case` はアクターが達成する1つの目的を記述する。主経路と代替経路は同じ目的の
+  範囲に限定し、別の目的は別ファイルにする。
+- `requirement` は利用者またはシステムが達成する1つの観測可能な成果を記述する。
+  方法、製品名、データ構造、コンポーネント名などの実装手段は書かない。
+- `Acceptance Criteria` は同じ成果に対する検証条件を `- AC-001: Given ... When ... Then ...`
+  の形式で1項目ずつ記載する。
+- `specification` は1つの振る舞いまたは契約を、入力・出力・異常系・制約まで具体化する。
+  特定のクラス、関数、ライブラリ、ディレクトリ構成などの実装手段は書かない。
+  外部システムとのインターフェース（Hook, MCP, Ollama API 等）の仕様書（ICD）も `specification` に
+  配置し、`tags: [interface, external, <対象名>]`（例: `[interface, external, hook]`）を付与して
+  プロトコル・入出力スキーマ・エラー表現・制約を定義する（ADR-0005 準拠）。
+- `design` は1つの構造上の決定または機構を記述する。責務、境界、データフロー、
+  選択理由、トレードオフを扱い、要件の受け入れ条件や仕様の定義を重複させない。
+  外部システム接続においては、ヘキサゴナルアーキテクチャ（ポート＆アダプタ）、リトライ、タイムアウト、
+  フォールバック構造などの耐障害性・分離設計を記述する。
+- `decision` は1つの意思決定だけを記録する。採用案と結果を明記し、実装の詳細は設計へ委譲する。
+- `quality_assurance` は要件・仕様に対する品質基準、検証方法、証跡、完了判定を記録する。
+  要件や仕様の定義そのもの、または実装構造の決定を重複して記載しない。
+- `test_case` は単体、内部結合、外部結合、総合、受入のいずれか1つの検証手順を記録する。
+  フロントマターには `test_level` と `verifies` を必須とし、`test_level` は
+  `unit`, `integration_internal`, `integration_external`, `system`, `acceptance` のいずれか、
+  `verifies` は検証対象の `REQ-`, `SPEC-`, `UC-`, `DSN-` のIDを持つ配列とする。
+  テストコードは `tests/`、実行結果や証跡の生成物は `test-results/` に置き、
+  `docs/test-cases/` にはテストケースの定義だけを置く。
+
+## Relationship cardinality and traceability
+
+要求（stakeholder need）は利用者・顧客・業務側から与えられる上流の動機・課題・期待成果であり、
+`docs/needs/` に `kind: need` として記録する。
+要求を整理し、合意・検証可能な成果にしたものを `requirement` として記録する。
+
+文書間の基本的な分解関係は次のとおりとする。
+
+```text
+要求 1 ── N 要件 1 ── N 仕様 1 ── N 設計
+```
+
+- 1つの要求は、1ファイル（`docs/needs/NEED-xxxx.md`）とし、複数の独立した要件に分解する（1:N）。
+- 1つの要件は、複数の振る舞い・契約として仕様化できる。
+- 1つの仕様は、複数の構造上の決定や設計要素に分解できる。
+- それぞれを無理に1:1へまとめない。独立して承認・変更・検証できる単位では分割する。
+- 上記は主たる分解関係であり、1:Nを基本とする。ただし、仕様・設計において複数の上流文書が
+  同じ成果・契約・構造を共同で定義する場合に限り、依存関係としてN:Mを許可する。1つの仕様が
+  複数要件を具体化する場合や、1つの設計が複数仕様を実現する場合は、依存する側の `depends_on`
+  に対象IDをすべて記載する。
+- 要求起点で作成された要件は、親となる要求IDを `depends_on` に1つ記載する。
+  要件起点で直接作成された要件は、`depends_on: []` とする。
+- `depends_on` は上流文書の変更時に当該文書の見直しが必要になる依存だけに使用する。
+  単なる追跡、参照、根拠、検証対象の対応付けには `links` を使用する。N:Mを文書の
+  粒度の粗さや独立した成果の混在を隠すために使用してはならない。
+- 要件・仕様・設計からテストケースへの検証対応は、テストケース側の `verifies` に記載する。
+  要件・仕様・設計側にテストケースへの逆向き参照を重複して記載しない。
+- 要件・仕様・設計からテストケースへの主たる検証関係は1:Nとする。ただし、同じ振る舞いを
+  共有して検証する場合に限り、1つのテストケースが複数の対象を `verifies` に持つN:Mを
+  許可する。独立した成果やシナリオを1つのテストケースに混在させない。
+- 依存関係と追跡関係はいずれも依存する側・参照する側だけに記載し、逆向きの参照を
+  重複して登録しない。
+
+## Dependency direction
+
+ここでいう依存は実装時・実行時の依存ではなく、文書の精緻化と変更影響の依存とする。
+依存方向は `need <- requirement <- specification <- design` とし、矢印の右側が左側に依存する。
+右側の文書は左側の文書を具体化し、左側の変更時には右側の見直しが必要になる。
+依存先のIDを `depends_on` に記載する。
+
+- `need` の `depends_on` は必ず `[]` とする（最上流の文書）。
+- `requirement` の `depends_on` は、要求起点の場合は親となる1つの `NEED-` のIDを記載し、
+  要件起点の場合は `[]` とする。
+- `actor` と `use_case` はこの依存階層の外に置き、`depends_on` は必ず `[]` とする。
+- `specification` は1つ以上の `requirement` に依存し、`depends_on` には要件IDだけを記載する。
+- 通常の `design` は1つ以上の `specification` に依存し、`depends_on` には仕様IDだけを記載する。
+- `quality_assurance` は検証対象の `requirement` または `specification` に依存できる。
+  品質基準が要件から導かれる場合は要件ID、検証方法や契約が仕様に基づく場合は仕様IDを
+  `depends_on` に記載する。両方の変更が品質保証文書の見直しを必要にする場合は両方を記載する。
+- 特定の要件・仕様を検証する `quality_assurance` は、少なくとも1つの検証対象に依存する。
+  全体品質方針など特定の対象を持たない `cross_cutting` の品質保証文書だけは
+  `depends_on: []` を許可する。
+- `quality_assurance` は要件・仕様を具体化する文書ではなく、検証・判定の側面を担うため、
+  `requirement` や `specification` から `quality_assurance` への逆向き依存は記載しない。
+- `design` が要件へ直接依存することや、下位から上位への逆流を禁止する。
+- 非機能要件や技術制約が設計に影響する場合も、適切な `specification` に分解してから
+  `design` へつなぐ。階層を飛ばす直接参照で代替しない。
+- `depends_on` は複数IDを許可するため、共同で成果・契約・構造を定義する場合に限り
+  N:Mの依存を表現できる。
+- `decision`（ADR）はこの依存階層の外に置き、`depends_on` は `[]` とする。関連文書は
+  `links` で参照する。`links` は関連・根拠の追跡用であり、依存関係の代用にはしない。
+- `quality_assurance` は精緻化の依存階層とは別軸だが、検証対象の要件・仕様への変更影響を
+  表す場合に限り `depends_on` を使用する。検証対象との単なる追跡や補足資料の関係には
+  `links` を使用する。
+- `test_case` は要件・仕様・設計の精緻化階層には含めない。テストケースの `depends_on` は、
+  変更時にテストケースの見直しが必要な要件・仕様・設計だけに使用し、検証対応そのものは
+  `verifies` に記載する。
+- 要件・仕様に紐づかない全体アーキテクチャやリポジトリ構成は `kind: design`、
+  `scope: cross_cutting` とする。この場合だけ `depends_on: []` を許可し、理由を
+  `## Content` に記載する。
+
+- `links` には関連文書の ID を記載し、存在しない IDを参照しない。
+- `use_case` のフロントマターには `actor_refs` と `requirement_refs` を必須とし、常に YAML 配列とする。
+- `actor_refs` には `actor` のIDだけ、`requirement_refs` には `requirement` のIDだけを記載する。
+- `actor_refs` と `requirement_refs` は追跡関係であり、`depends_on` には記載しない。
+- 追跡関係はユースケース側だけに記載し、要件やアクター側へ逆向きの参照を重複して登録しない。
+- 未定義のフロントマターキーは追加せず、追加データはスキーマを更新してから記載する。
+- `## Content` は1つだけ置き、文書の content はこの見出し以降の Markdown 本文全体とする。
+- `## Content` より前に本文として解釈される説明文やコメントを置かない。
+- Markdown本文内の見出し、箇条書き、表は許可するが、内容は `## Content` の配下に置く。
+- YAMLフロントマター内に自由文を置かず、本文以外のデータは明示的なキーにする。
