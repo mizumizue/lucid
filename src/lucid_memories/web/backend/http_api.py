@@ -210,8 +210,14 @@ def handler_factory(settings: Settings):
             content_type = mimetypes.guess_type(candidate.name)[0] or "application/octet-stream"
             if candidate.suffix == ".js":
                 content_type = "application/javascript"
+            is_text = content_type.startswith("text/") or content_type in (
+                "application/javascript",
+                "application/json",
+                "image/svg+xml",
+            )
+            header_type = f"{content_type}; charset=utf-8" if is_text else content_type
             self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+            self.send_header("Content-Type", header_type)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.end_headers()

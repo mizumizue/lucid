@@ -45,12 +45,12 @@ export function formatBytes(value: number | null | undefined): string {
 export function contentAvailabilityLabel(value: string | null | undefined): string {
   return (
     {
-      blob: "lucid-memories blob",
-      external: "External original",
-      preview: "Preview only",
-      unavailable: "Unavailable",
+      blob: "内部Blob",
+      external: "外部実体ファイル",
+      preview: "プレビューのみ",
+      unavailable: "利用不可",
     } as Record<string, string>
-  )[value || ""] || value || "Unknown";
+  )[value || ""] || value || "不明";
 }
 
 export function statusClass(value: string | null | undefined): string {
@@ -60,11 +60,11 @@ export function statusClass(value: string | null | undefined): string {
 export function storageScopeLabel(value: string | null | undefined): string {
   return (
     {
-      conversation: "Conversation blob",
-      workspace: "Workspace file",
-      repository: "Repository file",
+      conversation: "会話内Blob",
+      workspace: "ワークスペース",
+      repository: "リポジトリ",
     } as Record<string, string>
-  )[value || ""] || value || "Legacy artifact";
+  )[value || ""] || value || "成果物";
 }
 
 export function truncate(value: string | null | undefined, length = 140): string {

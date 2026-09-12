@@ -38,25 +38,25 @@ export function ActivityPage() {
   return (
     <div className="view">
       <ViewIntro
-        description="会話、tool 出力、生成ファイルを conversation_id で追跡します。本文の正本が lucid-memories か Workspace / Repository かも区別します。"
+        description="会話イベント、ツール実行ログ、および生成されたファイル成果物を conversation_id 単位で追跡します。"
         kicker="TRACEABILITY INDEX"
-        title="Activity index"
+        title="アクティビティ追跡 (Activity Index)"
       >
         <SearchInput
           label="アクティビティを検索"
           onChange={(value) => setValue("q", value)}
-          placeholder="会話・ファイル・出力を検索"
+          placeholder="会話・ファイル・出力を検索..."
           value={q}
         />
       </ViewIntro>
       <Panel className="filter-panel">
         <div className="filter-row">
           <label>
-            From
+            開始日
             <input onChange={(event) => setValue("from", event.target.value)} type="date" value={from} />
           </label>
           <label>
-            To
+            終了日
             <input onChange={(event) => setValue("to", event.target.value)} type="date" value={to} />
           </label>
         </div>
@@ -65,13 +65,13 @@ export function ActivityPage() {
         <Panel className="table-panel">
           <PanelHeading
             kicker="EVENTS"
-            title="会話と生成イベント"
-            action={<span className="panel-note">{events.data?.pagination.total ?? "—"} events</span>}
+            title="会話およびツール実行イベント"
+            action={<span className="panel-note">全 {events.data?.pagination.total ?? "—"} 件</span>}
           />
           <ResourceState resource={events}>
             {(payload) => (
               <>
-                {payload.data.length ? <EventTable rows={payload.data} /> : <EmptyState message="会話イベントはありません。hook 未接続の可能性があります。" />}
+                {payload.data.length ? <EventTable rows={payload.data} /> : <EmptyState message="会話イベントは記録されていません。Hook 未接続または処理待ちの可能性があります。" />}
                 <Pagination onChange={(next) => setValue("page", next, false)} page={payload.pagination} />
               </>
             )}
@@ -80,24 +80,24 @@ export function ActivityPage() {
         <Panel className="table-panel">
           <PanelHeading
             kicker="ARTIFACTS"
-            title="出力ファイル / 成果物"
-            action={<span className="panel-note">{artifacts.data?.pagination.total ?? "—"} files</span>}
+            title="生成ファイル成果物"
+            action={<span className="panel-note">全 {artifacts.data?.pagination.total ?? "—"} 件</span>}
           />
           <div className="table-toolbar">
             <label>
-              Storage
+              保管スコープ
               <select onChange={(event) => setValue("scope", event.target.value)} value={scope}>
                 <option value="">すべての保管先</option>
-                <option value="conversation">conversation blob</option>
-                <option value="workspace">workspace file</option>
-                <option value="repository">repository file</option>
+                <option value="conversation">conversation blob (セッション内Blob)</option>
+                <option value="workspace">workspace file (ワークスペースファイル)</option>
+                <option value="repository">repository file (リポジトリファイル)</option>
               </select>
             </label>
           </div>
           <ResourceState resource={artifacts}>
             {(payload) => (
               <>
-                {payload.data.length ? <ArtifactTable rows={payload.data} /> : <EmptyState message="ファイル成果物はありません。" />}
+                {payload.data.length ? <ArtifactTable rows={payload.data} /> : <EmptyState message="ファイル成果物は記録されていません。" />}
                 <Pagination onChange={(next) => setValue("page", next, false)} page={payload.pagination} />
               </>
             )}
@@ -114,11 +114,11 @@ export function EventTable({ rows }: { rows: ConversationEvent[] }) {
       <table className="data-table event-table">
         <thead>
           <tr>
-            <th>Time</th>
-            <th>Role / tool</th>
-            <th>Session</th>
-            <th>Input</th>
-            <th>Output</th>
+            <th>発生日時</th>
+            <th>ロール / ツール</th>
+            <th>関連セッション</th>
+            <th>入力 (Input)</th>
+            <th>出力 (Output)</th>
           </tr>
         </thead>
         <tbody>
@@ -146,12 +146,12 @@ export function ArtifactTable({ rows }: { rows: Artifact[] }) {
       <table className="data-table artifact-table">
         <thead>
           <tr>
-            <th>Updated</th>
-            <th>File</th>
-            <th>Storage</th>
-            <th>Availability</th>
-            <th>Session</th>
-            <th>Size</th>
+            <th>更新日時</th>
+            <th>ファイル名 / パス</th>
+            <th>保管場所</th>
+            <th>可用性</th>
+            <th>関連セッション</th>
+            <th>サイズ</th>
           </tr>
         </thead>
         <tbody>

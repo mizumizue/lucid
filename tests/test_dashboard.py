@@ -186,5 +186,43 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(len(recalled_edges), 1)
         self.assertEqual(recalled_edges[0]["count"], 2)
 
+    def test_dashboard_main_argument_parsing(self) -> None:
+        from unittest.mock import patch
+        from lucid_memories.web import dashboard
+
+        with patch.object(dashboard, "run_dashboard", return_value=0) as mock_run:
+            dashboard.main([])
+            mock_run.assert_called_with(host="127.0.0.1", port=8765, open_browser=False)
+
+        with patch.object(dashboard, "run_dashboard", return_value=0) as mock_run:
+            dashboard.main(["open"])
+            mock_run.assert_called_with(host="127.0.0.1", port=8765, open_browser=True)
+
+        with patch.object(dashboard, "run_dashboard", return_value=0) as mock_run:
+            dashboard.main(["--open", "--port", "8888"])
+            mock_run.assert_called_with(host="127.0.0.1", port=8888, open_browser=True)
+
+    def test_cli_open_and_dashboard_dispatch(self) -> None:
+        from unittest.mock import patch
+        from lucid_memories.entrypoints import cli
+        from lucid_memories.web import dashboard
+
+        with patch.object(dashboard, "run_dashboard", return_value=0) as mock_run:
+            cli.main(["open"])
+            mock_run.assert_called_with(host="127.0.0.1", port=8765, open_browser=True)
+
+        with patch.object(dashboard, "run_dashboard", return_value=0) as mock_run:
+            cli.main(["dashboard", "open"])
+            mock_run.assert_called_with(host="127.0.0.1", port=8765, open_browser=True)
+
+        with patch.object(dashboard, "run_dashboard", return_value=0) as mock_run:
+            cli.main(["dashboard", "--open"])
+            mock_run.assert_called_with(host="127.0.0.1", port=8765, open_browser=True)
+
+        with patch.object(dashboard, "run_dashboard", return_value=0) as mock_run:
+            cli.main(["dashboard"])
+            mock_run.assert_called_with(host="127.0.0.1", port=8765, open_browser=False)
+
+
 if __name__ == "__main__":
     unittest.main()

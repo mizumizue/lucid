@@ -30,4 +30,4 @@ fi
 export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
-exec "$PY" -m lucid_memories.entrypoints.cli "$@"
+exec "$PY" -m lucid_memories.web.dashboard "$@"

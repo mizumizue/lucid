@@ -265,6 +265,24 @@ def deploy_skills(repo_root: Path) -> None:
             log(f"Deployed skill '{item.name}' -> {target_dir / 'SKILL.md'}")
 
 
+def configure_bin_scripts(repo_root: Path) -> None:
+    source_bin = repo_root / "bin"
+    if not source_bin.exists():
+        return
+    target_bin = Path.home() / "bin"
+    target_bin.mkdir(parents=True, exist_ok=True)
+    for item in source_bin.iterdir():
+        if item.is_file():
+            target_path = target_bin / item.name
+            shutil.copy2(item, target_path)
+            if not item.name.endswith(".cmd"):
+                try:
+                    target_path.chmod(target_path.stat().st_mode | 0o755)
+                except OSError:
+                    pass
+            log(f"Deployed CLI launcher: {target_path}")
+
+
 def ensure_persona(repo_root: Path) -> None:
     persona_dir = repo_root / "persona"
     persona_dir.mkdir(parents=True, exist_ok=True)
@@ -406,6 +424,7 @@ def main() -> int:
     configure_mcp(repo_root, python_exe=args.python)
     configure_hooks(repo_root, python_exe=args.python)
     deploy_skills(repo_root)
+    configure_bin_scripts(repo_root)
     probe_ollama()
 
     if not args.skip_verify:

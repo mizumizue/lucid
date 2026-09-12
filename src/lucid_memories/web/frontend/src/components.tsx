@@ -3,6 +3,58 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatDate, formatNumber, shortId, statusClass } from "./format";
 import { useRefresh, type ResourceState } from "./hooks";
+import { useTheme } from "./theme";
+
+function SunIcon() {
+  return (
+    <svg fill="none" height="15" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="15">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" x2="12" y1="1" y2="3" />
+      <line x1="12" x2="12" y1="21" y2="23" />
+      <line x1="4.22" x2="5.64" y1="4.22" y2="5.64" />
+      <line x1="18.36" x2="19.78" y1="18.36" y2="19.78" />
+      <line x1="1" x2="3" y1="12" y2="12" />
+      <line x1="21" x2="23" y1="12" y2="12" />
+      <line x1="4.22" x2="5.64" y1="19.78" y2="18.36" />
+      <line x1="18.36" x2="19.78" y1="5.64" y2="4.22" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg fill="none" height="15" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="15">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+export function ThemeToggle() {
+  const { resolvedTheme, toggleTheme } = useTheme();
+
+  const handleToggle = () => {
+    toggleTheme();
+    const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
+    if (nextTheme === "dark") {
+      toast.info("ダークテーマに切り替えました");
+    } else {
+      toast.info("ライトテーマに切り替えました");
+    }
+  };
+
+  return (
+    <button
+      aria-label="表示テーマ切り替え"
+      className="theme-toggle-btn"
+      onClick={handleToggle}
+      title={resolvedTheme === "dark" ? "ライトテーマに切り替える" : "ダークテーマに切り替える"}
+      type="button"
+    >
+      {resolvedTheme === "dark" ? <SunIcon /> : <MoonIcon />}
+      <span>{resolvedTheme === "dark" ? "ライト" : "ダーク"}</span>
+    </button>
+  );
+}
 
 function OverviewIcon() {
   return (
@@ -274,12 +326,12 @@ const navigation = [
 
 const titles: Record<string, string> = {
   "/": "Overview",
-  "/sessions": "Session history",
-  "/jobs": "Job history",
-  "/memory": "Memory operations",
-  "/recall-graph": "Conversation recall graph",
-  "/activity": "Activity index",
-  "/daily": "Daily summary",
+  "/sessions": "Session History",
+  "/jobs": "Job History",
+  "/memory": "Memory Operations",
+  "/recall-graph": "Conversation Recall Graph",
+  "/activity": "Activity Index",
+  "/daily": "Daily Summary",
   "/guide": "Documentation & Feature Guide",
 };
 
@@ -289,9 +341,9 @@ export function AppShell() {
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
 
   const title = location.pathname.startsWith("/sessions/")
-    ? "Session detail"
+    ? "Session Detail"
     : location.pathname.startsWith("/artifacts/")
-      ? "Artifact detail"
+      ? "Artifact Detail"
       : titles[location.pathname] || "lucid-memories Dashboard";
 
   const handleRefreshClick = () => {
@@ -377,6 +429,7 @@ export function AppShell() {
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
+            <ThemeToggle />
             <button
               className="glossary-button"
               onClick={() => setIsGlossaryOpen(true)}
@@ -582,12 +635,12 @@ export function ResourceState<T>({
 }) {
   if (resource.loading && !resource.data) return <LoadingState />;
   if (resource.error && !resource.data) return <ErrorState error={resource.error} retry={resource.retry} />;
-  if (!resource.data) return <EmptyState message="データはありません。" />;
+  if (!resource.data) return <EmptyState message="データがありません。" />;
   return (
     <>
-      {resource.loading && <div className="refreshing" role="status">更新中…</div>}
+      {resource.loading && <div className="refreshing" role="status">最新データに更新中…</div>}
       {children(resource.data)}
-      {resource.error && <div className="inline-warning">更新に失敗しました。前回のデータを表示しています。</div>}
+      {resource.error && <div className="inline-warning">データの更新に失敗しました。以前取得したデータを表示しています。</div>}
     </>
   );
 }
@@ -599,11 +652,11 @@ export function Pagination({
   page: { page: number; pages: number; total: number; has_previous: boolean; has_next: boolean };
   onChange: (page: number) => void;
 }) {
-  if (page.pages <= 1) return <div className="result-count">{formatNumber(page.total)} 件</div>;
+  if (page.pages <= 1) return <div className="result-count">全 {formatNumber(page.total)} 件</div>;
   return (
-    <div aria-label="Pagination" className="pagination">
+    <div aria-label="ページネーション" className="pagination">
       <button disabled={!page.has_previous} onClick={() => onChange(page.page - 1)} type="button">← 前へ</button>
-      <span>{page.page} / {page.pages} · {formatNumber(page.total)} 件</span>
+      <span>{page.page} / {page.pages} ページ · 全 {formatNumber(page.total)} 件</span>
       <button disabled={!page.has_next} onClick={() => onChange(page.page + 1)} type="button">次へ →</button>
     </div>
   );
@@ -632,7 +685,7 @@ export function DateCell({ value }: { value?: string | null }) {
 
 export function ExpandableText({
   value,
-  label = "全文",
+  label = "全文を表示",
 }: {
   value?: string | null;
   label?: string;
@@ -640,6 +693,7 @@ export function ExpandableText({
   if (!value) return <span>—</span>;
 
   const copy = () => {
+    const preview = value.length > 50 ? `${value.slice(0, 50)}…` : value;
     const fallbackCopy = () => {
       try {
         const textArea = document.createElement("textarea");
@@ -653,7 +707,7 @@ export function ExpandableText({
         document.execCommand("copy");
         document.body.removeChild(textArea);
         toast.success("クリップボードにコピーしました", {
-          description: `${value.slice(0, 40)}…`,
+          description: preview,
         });
       } catch (err) {
         toast.error("コピーに失敗しました", {
@@ -667,7 +721,7 @@ export function ExpandableText({
         .writeText(value)
         .then(() => {
           toast.success("クリップボードにコピーしました", {
-            description: `${value.slice(0, 40)}…`,
+            description: preview,
           });
         })
         .catch(() => {
@@ -684,7 +738,7 @@ export function ExpandableText({
       <div className="text-actions">
         {value.length > 140 && <details><summary>{label}</summary><pre>{value}</pre></details>}
         <button className="copy-button" onClick={copy} title="クリップボードにコピー" type="button">
-          Copy
+          コピー
         </button>
       </div>
     </div>

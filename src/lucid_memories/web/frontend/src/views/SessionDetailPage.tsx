@@ -19,24 +19,105 @@ export function SessionDetailPage() {
   const { id = "" } = useParams();
   const { revision } = useRefresh();
   const resource = useResource((signal) => api.session(id, signal), [id, revision]);
-  return <div className="view"><div className="back-link"><Link to="/sessions">← Sessions に戻る</Link></div><ResourceState resource={resource}>{(detail) => <SessionDetailContent detail={detail} />}</ResourceState></div>;
+  return (
+    <div className="view">
+      <div className="back-link">
+        <Link to="/sessions">← セッション一覧に戻る</Link>
+      </div>
+      <ResourceState resource={resource}>
+        {(detail) => <SessionDetailContent detail={detail} />}
+      </ResourceState>
+    </div>
+  );
 }
 
 function SessionDetailContent({ detail }: { detail: SessionDetail }) {
   const session = detail.data;
-  return <div className="detail-stack">
-    <Panel><div className="panel-kicker">SESSION DETAIL</div><h2>{sessionDisplayTitle(session.title, detail.input_output.input, session.conversation_id)}</h2><div className="detail-grid">
-      <div><label>Conversation ID</label><p className="mono">{session.conversation_id}</p></div><div><label>Status</label><p><StatusBadge value={session.status} /></p></div><div><label>Model</label><p>{session.model || "未記録"}</p></div><div><label>Updated</label><p><DateCell value={session.updated_at} /></p></div>
-    </div></Panel>
-    <Panel><PanelHeading kicker="INPUT / OUTPUT" title="Turn content" /><div className="content-columns"><TextBlock label="Last input" value={detail.input_output.input} /><TextBlock label="Output" value={detail.input_output.output} /></div><p className="muted">{detail.input_output.message}</p></Panel>
-    <Panel><PanelHeading kicker={`JOBS (${detail.relationships.jobs.length})`} title="Related jobs" />{detail.relationships.jobs.length ? <JobTable rows={detail.relationships.jobs} /> : <EmptyState message="関連ジョブはありません。" />}</Panel>
-    <Panel><PanelHeading kicker={`ACTIVITY (${detail.relationships.events.length})`} title="Conversation events" />{detail.relationships.events.length ? <EventTable rows={detail.relationships.events} /> : <EmptyState message="会話イベントはありません。" />}</Panel>
-    <div className="content-grid">
-      <Panel><PanelHeading kicker={`USAGE (${detail.relationships.usage.length})`} title="Usage" />{detail.relationships.usage.length ? <ul className="detail-list">{detail.relationships.usage.map((event) => <li key={event.id}>{formatDate(event.created_at, true)} · {event.model || "未記録"} · in {formatNumber(event.input_tokens)} · out {formatNumber(event.output_tokens)} · {formatCost(event.cost_usd)}</li>)}</ul> : <EmptyState message="Usage event はありません。" />}</Panel>
-      <Panel><PanelHeading kicker={`ARTIFACTS (${detail.relationships.artifacts.length})`} title="Artifacts" />{detail.relationships.artifacts.length ? <ul className="detail-list">{detail.relationships.artifacts.map((artifact) => <li key={artifact.id}><Link className="link" to={`/artifacts/${encodeURIComponent(artifact.id)}`}>{artifact.relative_path || artifact.path || artifact.name}</Link><small>{storageScopeLabel(artifact.storage_scope)} · {artifact.content_availability || "unknown"} · {(artifact.blob_sha || artifact.sha256 || "").slice(0, 12) || "hash unavailable"}</small>{artifact.content_preview && <details><summary>Preview</summary><pre>{artifact.content_preview}</pre></details>}</li>)}</ul> : <EmptyState message="ファイル成果物はありません。" />}</Panel>
+  return (
+    <div className="detail-stack">
+      <Panel>
+        <div className="panel-kicker">SESSION DETAIL</div>
+        <h2>{sessionDisplayTitle(session.title, detail.input_output.input, session.conversation_id)}</h2>
+        <div className="detail-grid">
+          <div><label>会話ID</label><p className="mono">{session.conversation_id}</p></div>
+          <div><label>状態</label><p><StatusBadge value={session.status} /></p></div>
+          <div><label>モデル</label><p>{session.model || "未記録"}</p></div>
+          <div><label>最終更新</label><p><DateCell value={session.updated_at} /></p></div>
+        </div>
+      </Panel>
+      <Panel>
+        <PanelHeading kicker="INPUT / OUTPUT" title="最新ターンの入出力内容" />
+        <div className="content-columns">
+          <TextBlock label="直前のプロンプト入力" value={detail.input_output.input} />
+          <TextBlock label="モデル応答出力" value={detail.input_output.output} />
+        </div>
+        <p className="muted">{detail.input_output.message}</p>
+      </Panel>
+      <Panel>
+        <PanelHeading kicker={`JOBS (${detail.relationships.jobs.length})`} title="関連ジョブ" />
+        {detail.relationships.jobs.length ? <JobTable rows={detail.relationships.jobs} /> : <EmptyState message="関連するジョブ実行履歴はありません。" />}
+      </Panel>
+      <Panel>
+        <PanelHeading kicker={`ACTIVITY (${detail.relationships.events.length})`} title="会話イベント履歴" />
+        {detail.relationships.events.length ? <EventTable rows={detail.relationships.events} /> : <EmptyState message="会話イベントの記録はありません。" />}
+      </Panel>
+      <div className="content-grid">
+        <Panel>
+          <PanelHeading kicker={`USAGE (${detail.relationships.usage.length})`} title="トークン使用量 (Usage)" />
+          {detail.relationships.usage.length ? (
+            <ul className="detail-list">
+              {detail.relationships.usage.map((event) => (
+                <li key={event.id}>
+                  {formatDate(event.created_at, true)} · {event.model || "未記録"} · in {formatNumber(event.input_tokens)} · out {formatNumber(event.output_tokens)} · {formatCost(event.cost_usd)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="トークン使用量のイベント記録はありません。" />
+          )}
+        </Panel>
+        <Panel>
+          <PanelHeading kicker={`ARTIFACTS (${detail.relationships.artifacts.length})`} title="生成ファイル成果物" />
+          {detail.relationships.artifacts.length ? (
+            <ul className="detail-list">
+              {detail.relationships.artifacts.map((artifact) => (
+                <li key={artifact.id}>
+                  <Link className="link" to={`/artifacts/${encodeURIComponent(artifact.id)}`}>
+                    {artifact.relative_path || artifact.path || artifact.name}
+                  </Link>
+                  <small>
+                    {storageScopeLabel(artifact.storage_scope)} · {artifact.content_availability || "unknown"} · {(artifact.blob_sha || artifact.sha256 || "").slice(0, 12) || "ハッシュなし"}
+                  </small>
+                  {artifact.content_preview && (
+                    <details>
+                      <summary>プレビューを表示</summary>
+                      <pre>{artifact.content_preview}</pre>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="保存された成果物（ファイル）はありません。" />
+          )}
+        </Panel>
+      </div>
+      <Panel>
+        <PanelHeading kicker={`COMPACTIONS (${detail.relationships.compactions.length})`} title="コンパクション (文脈圧縮)" />
+        {detail.relationships.compactions.length ? (
+          <ul className="detail-list">
+            {detail.relationships.compactions.map((event) => (
+              <li key={event.id}>
+                {formatDate(event.created_at, true)} · {formatNumber(event.context_tokens)} tokens · {event.context_usage_percent == null ? "—" : `${Math.round(event.context_usage_percent)}%`}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState message="コンパクション（文脈圧縮）のイベント記録はありません。" />
+        )}
+      </Panel>
     </div>
-    <Panel><PanelHeading kicker={`COMPACTIONS (${detail.relationships.compactions.length})`} title="Compactions" />{detail.relationships.compactions.length ? <ul className="detail-list">{detail.relationships.compactions.map((event) => <li key={event.id}>{formatDate(event.created_at, true)} · {formatNumber(event.context_tokens)} tokens · {event.context_usage_percent == null ? "—" : `${Math.round(event.context_usage_percent)}%`}</li>)}</ul> : <EmptyState message="Compaction event はありません。" />}</Panel>
-  </div>;
+  );
 }
 
 function TextBlock({ label, value }: { label: string; value?: string | null }) {

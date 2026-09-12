@@ -121,6 +121,24 @@ class SetupDirectoryTests(unittest.TestCase):
         resolved = self.setup_module.find_repo_root()
         self.assertEqual(resolved.resolve(), ROOT.resolve())
 
+    def test_configure_bin_scripts(self) -> None:
+        from unittest.mock import patch
+
+        source_bin = self.repo_root / "bin"
+        source_bin.mkdir(parents=True, exist_ok=True)
+        (source_bin / "lg").write_text("#!/bin/bash\necho lg\n", encoding="utf-8")
+        (source_bin / "lg.cmd").write_text("@echo off\n", encoding="utf-8")
+
+        mock_home = self.repo_root / "mock_home"
+        mock_home.mkdir(parents=True, exist_ok=True)
+
+        with patch("pathlib.Path.home", return_value=mock_home):
+            self.setup_module.configure_bin_scripts(self.repo_root)
+
+        target_bin = mock_home / "bin"
+        self.assertTrue((target_bin / "lg").is_file())
+        self.assertTrue((target_bin / "lg.cmd").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

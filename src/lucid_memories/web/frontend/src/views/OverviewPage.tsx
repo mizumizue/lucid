@@ -22,36 +22,36 @@ export function OverviewPage() {
   return (
     <div className="view">
       <ViewIntro
-        description="セッション、ジョブ、コンパクション、検索ログを lucid-memories SQLite から読み取ります。"
+        description="Cursor 上の会話セッション、ジョブキュー、コンパクション、想起ログの健全性をリアルタイムに可視化します。"
         kicker="REAL-TIME MEMORY BUS"
-        title="共有コンテキストの流れをひとつの画面で。"
+        title="エージェント記憶と実行状況の統合ダッシュボード"
       />
       <ResourceState resource={overview}>
         {(data) => (
           <>
             <div className="metric-grid">
-              <MetricCard label="Live sessions" note={`${formatNumber(data.counts.sessions)} total`} value={data.counts.live_sessions} />
-              <MetricCard label="Open jobs" note={`${formatNumber(data.counts.jobs)} total`} tone="mint" value={data.counts.open_jobs} />
+              <MetricCard label="アクティブセッション" note={`全 ${formatNumber(data.counts.sessions)} 件`} value={data.counts.live_sessions} />
+              <MetricCard label="実行中ジョブ" note={`全 ${formatNumber(data.counts.jobs)} 件`} tone="mint" value={data.counts.open_jobs} />
               <MetricCard
-                label="Input tokens"
-                note={data.usage.status === "available" ? `${formatNumber(data.usage.events)} usage events` : data.usage.status}
+                label="入力トークン"
+                note={data.usage.status === "available" ? `計測イベント ${formatNumber(data.usage.events)} 件` : data.usage.status}
                 tone="coral"
                 value={data.usage.status === "available" ? formatNumber(data.usage.input_tokens) : "—"}
               />
               <MetricCard
-                label="Cost (USD)"
-                note={data.usage.status === "available" ? `${formatNumber(data.usage.output_tokens)} output tokens` : data.usage.status}
+                label="推定コスト (USD)"
+                note={data.usage.status === "available" ? `出力 ${formatNumber(data.usage.output_tokens)} tokens` : data.usage.status}
                 tone="yellow"
                 value={data.usage.status === "available" ? formatCost(data.usage.cost_usd) : "—"}
               />
             </div>
             <div className="content-grid">
               <Panel className="wide-panel">
-                <PanelHeading kicker="ACTIVITY" title="日次アクティビティ" action={<span className="panel-note">直近 14 日</span>} />
+                <PanelHeading kicker="ACTIVITY" title="日次アクティビティ" action={<span className="panel-note">直近 14 日間</span>} />
                 <ActivityChart days={daily.data?.data || []} />
               </Panel>
               <Panel>
-                <PanelHeading kicker="DISTRIBUTION" title="利用モデル" />
+                <PanelHeading kicker="DISTRIBUTION" title="モデル利用比率" />
                 <div className="model-list">
                   {data.models.length ? data.models.slice(0, 6).map((model, index) => {
                     const total = data.models.reduce((sum, item) => sum + item.sessions, 0) || 1;
@@ -61,13 +61,13 @@ export function OverviewPage() {
                         <div className="model-track"><div className={`model-fill fill-${index % 3}`} style={{ width: `${model.sessions / total * 100}%` }} /></div>
                       </div>
                     );
-                  }) : <EmptyState message="モデル情報はまだありません。" />}
+                  }) : <EmptyState message="モデルの利用記録はまだありません。" />}
                 </div>
               </Panel>
             </div>
             <div className="content-grid lower-grid">
               <Panel className="wide-panel">
-                <PanelHeading kicker="RECENT" title="最近のセッション" action={<Link className="text-link" to="/sessions">すべて見る →</Link>} />
+                <PanelHeading kicker="RECENT" title="最近のセッション" action={<Link className="text-link" to="/sessions">すべて表示 →</Link>} />
                 <div className="session-list">
                   {data.recent_sessions.length ? data.recent_sessions.map((session) => (
                     <Link className="session-row" key={session.conversation_id} to={`/sessions/${encodeURIComponent(session.conversation_id)}`}>
@@ -76,23 +76,23 @@ export function OverviewPage() {
                       <StatusBadge value={session.status} />
                       <DateCell value={session.last_heartbeat_at || session.updated_at} />
                     </Link>
-                  )) : <EmptyState message="セッションはまだありません。" />}
+                  )) : <EmptyState message="セッション履歴はまだありません。" />}
                 </div>
               </Panel>
               <Panel>
-                <PanelHeading kicker="DATA COVERAGE" title="計測状況" />
+                <PanelHeading kicker="DATA COVERAGE" title="トークン計測カバレッジ" />
                 <div className={`coverage-card coverage-${data.usage.status}`}>
                   <div className="coverage-icon">{data.usage.status === "available" ? "◉" : "◒"}</div>
                   <h4>{coverageTitle(data.usage.status)}</h4>
                   <p>{data.usage.message}</p>
                   <div className="coverage-meter"><span style={{ width: data.usage.status === "available" ? "100%" : "40%" }} /></div>
-                  <small>{data.index.events} events · {data.index.artifacts} artifacts</small>
+                  <small>{formatNumber(data.index.events)} events · {formatNumber(data.index.artifacts)} artifacts</small>
                 </div>
               </Panel>
             </div>
             <div className="content-grid lower-grid">
               <Panel>
-                <PanelHeading kicker="HOOK COVERAGE" title="収集しているイベント" />
+                <PanelHeading kicker="HOOK COVERAGE" title="Hookイベント収集状況" />
                 {data.hooks ? (
                   <div className={`coverage-card coverage-${data.hooks.status}`}>
                     <h4>{hookTitle(data.hooks.status)}</h4>
@@ -102,7 +102,7 @@ export function OverviewPage() {
                       {data.hooks.missing.length ? ` · missing ${data.hooks.missing.slice(0, 3).join(", ")}` : ""}
                     </small>
                   </div>
-                ) : <EmptyState message="hook 収集状況は未対応です。" />}
+                ) : <EmptyState message="Hook収集状況は未接続です。" />}
               </Panel>
               <Panel>
                 <PanelHeading kicker="PERSONA" title="Global persona" />
@@ -114,34 +114,34 @@ export function OverviewPage() {
                     <StatusSummaryRow label="Pending candidates" value={data.persona.candidates.counts.pending} />
                     <p className="muted">{data.persona.message}</p>
                   </div>
-                ) : <EmptyState message="persona は未対応です。" />}
+                ) : <EmptyState message="ペルソナは未設定です。" />}
               </Panel>
             </div>
             <div className="content-grid lower-grid">
               <Panel>
                 <PanelHeading
                   kicker="MEMORY LIFECYCLE"
-                  title="記憶の状態"
+                  title="記憶ライフサイクル"
                   action={<Link className="text-link" to="/memory">詳細 →</Link>}
                 />
                 {data.memory ? (
                   <div className="status-summary">
-                    <StatusSummaryRow label="Active memories" value={data.memory.knowledge.counts.active} />
-                    <StatusSummaryRow label="Faded memories" value={data.memory.knowledge.counts.faded} />
-                    <StatusSummaryRow label="Pending tasks" value={data.memory.tasks.counts.pending} />
-                    <StatusSummaryRow label="Pending candidates" value={data.memory.candidates.counts.pending} />
+                    <StatusSummaryRow label="有効な記憶 (Active)" value={data.memory.knowledge.counts.active} />
+                    <StatusSummaryRow label="減衰した記憶 (Faded)" value={data.memory.knowledge.counts.faded} />
+                    <StatusSummaryRow label="保留中タスク" value={data.memory.tasks.counts.pending} />
+                    <StatusSummaryRow label="昇格候補 (Candidate)" value={data.memory.candidates.counts.pending} />
                   </div>
-                ) : <EmptyState message="Memory lifecycle は未対応です。" />}
+                ) : <EmptyState message="記憶ライフサイクルの情報はありません。" />}
               </Panel>
               <Panel>
                 <PanelHeading kicker="INDEX HEALTH" title="検索・埋め込み・Map" />
                 <div className="status-summary">
-                  <StatusSummaryRow label="Embeddings" value={data.embeddings?.total} suffix={data.embeddings?.available ? "vectors" : "未対応"} />
-                  <StatusSummaryRow label="Map nodes" value={data.map?.nodes} suffix={data.map?.graph_available ? "graph ready" : "SQLite index"} />
-                    <StatusSummaryRow label="Proposed Map edges" value={proposedEdgeCount(data.map?.relation_counts)} />
-                  <StatusSummaryRow label="Retrieval hit rate" value={data.retrieval?.hit_rate == null ? undefined : Math.round(data.retrieval.hit_rate * 100)} suffix={data.retrieval?.hit_rate == null ? "—" : "%"} />
-                  <StatusSummaryRow label="Stored blobs" value={data.storage?.blobs.count} suffix={data.storage?.blobs.available ? "blobs" : "未対応"} />
-                  <StatusSummaryRow label="Pack tokens" value={data.context?.token_estimate} suffix={data.context?.available ? "est." : "未対応"} />
+                  <StatusSummaryRow label="ベクトル埋め込み" value={data.embeddings?.total} suffix={data.embeddings?.available ? "vectors" : "未生成"} />
+                  <StatusSummaryRow label="ナレッジマップノード" value={data.map?.nodes} suffix={data.map?.graph_available ? "graph ready" : "SQLite index"} />
+                  <StatusSummaryRow label="提案中の関係エッジ" value={proposedEdgeCount(data.map?.relation_counts)} />
+                  <StatusSummaryRow label="想起ヒット率" value={data.retrieval?.hit_rate == null ? undefined : Math.round(data.retrieval.hit_rate * 100)} suffix={data.retrieval?.hit_rate == null ? "—" : "%"} />
+                  <StatusSummaryRow label="永続化Blob" value={data.storage?.blobs.count} suffix={data.storage?.blobs.available ? "blobs" : "未保存"} />
+                  <StatusSummaryRow label="Relayパック容量" value={data.context?.token_estimate} suffix={data.context?.available ? "tokens" : "未生成"} />
                 </div>
               </Panel>
             </div>
@@ -179,31 +179,31 @@ function proposedEdgeCount(relationCounts?: Record<string, number>): number | un
 
 function hookTitle(status: string) {
   return {
-    available: "Hook を収集中",
-    partial: "一部の hook のみ収集",
-    no_events: "Hook 収集を待機中",
-    unavailable: "Hook は未対応",
+    available: "Hook イベントを正常に収集中",
+    partial: "一部の Hook イベントのみ収集中",
+    no_events: "Hook イベントの受信待機中",
+    unavailable: "Hook 未接続 / 未対応",
   }[status] || "Hook 状態不明";
 }
 
 function coverageTitle(status: string) {
   return {
-    available: "Usage を計測中",
-    no_events: "Usage 計測を待機中",
-    unavailable: "Usage は未対応",
-  }[status] || "Usage 状態不明";
+    available: "トークン使用量を計測中",
+    no_events: "トークン使用量の記録待機中",
+    unavailable: "トークン使用量の計測なし",
+  }[status] || "計測状態不明";
 }
 
 function ActivityChart({ days }: { days: DailyPoint[] }) {
   const max = Math.max(1, ...days.map((day) => Math.max(day.sessions, day.jobs, day.compactions)));
-  if (!days.length) return <EmptyState message="日次データはありません。" />;
+  if (!days.length) return <EmptyState message="日次アクティビティのデータはありません。" />;
   return (
     <>
       <div className="chart-wrap">
         <div className="chart-y-labels"><span>{formatNumber(max)}</span><span>0</span></div>
-        <div className="bar-chart" aria-label="Daily activity chart">
+        <div className="bar-chart" aria-label="日次アクティビティチャート">
           {days.map((day) => (
-            <div className="bar-group" key={day.day} title={`${day.day}: sessions ${day.sessions}, jobs ${day.jobs}, compactions ${day.compactions}`}>
+            <div className="bar-group" key={day.day} title={`${day.day}: セッション ${day.sessions}, ジョブ ${day.jobs}, コンパクション ${day.compactions}`}>
               <div className="bar" style={{ height: `${day.sessions / max * 100}%` }} />
               <div className="bar mint" style={{ height: `${day.jobs / max * 100}%` }} />
               <div className="bar coral" style={{ height: `${day.compactions / max * 100}%` }} />
@@ -212,7 +212,7 @@ function ActivityChart({ days }: { days: DailyPoint[] }) {
           ))}
         </div>
       </div>
-      <div className="chart-legend"><span><i className="legend-swatch indigo" />Sessions</span><span><i className="legend-swatch mint" />Jobs</span><span><i className="legend-swatch coral" />Compactions</span></div>
+      <div className="chart-legend"><span><i className="legend-swatch indigo" />セッション</span><span><i className="legend-swatch mint" />ジョブ</span><span><i className="legend-swatch coral" />コンパクション</span></div>
     </>
   );
 }

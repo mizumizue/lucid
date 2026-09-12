@@ -55,7 +55,7 @@ export function RecallGraphPage() {
     setValue("source", "all");
     setValue("since", "");
     setValue("until", "");
-    toast.info("フィルターをリセットしました");
+    toast.info("検索・絞り込みフィルターを初期状態にリセットしました");
   };
 
   useEffect(() => {
@@ -86,30 +86,30 @@ export function RecallGraphPage() {
   return (
     <div className="view">
       <ViewIntro
-        description="会話から想起イベントを経由して、取得された記憶と Map の関係を表示します。"
+        description="ユーザーとエージェントの会話（Session）から発生した想起イベント（Retrieval）と、参照された記憶（Memory）およびナレッジマップ（Map）の因果関係を有向グラフで可視化します。"
         kicker="RETRIEVAL TRACE"
-        title="Conversation recall graph"
+        title="会話想起グラフ (Recall Graph)"
       >
         <div className="graph-controls">
           <label>
-            Keyword
+            キーワード
             <input
-              aria-label="Keyword search"
+              aria-label="キーワード検索"
               onChange={(event) => setKeyword(event.target.value)}
-              placeholder="検索 (/ でフォーカス)..."
+              placeholder="検索 (/ キーでフォーカス)..."
               ref={searchInputRef}
               type="search"
               value={keyword}
             />
           </label>
           <label>
-            Conversation
+            セッション
             <select
-              aria-label="Conversation"
+              aria-label="会話セッション"
               onChange={(event) => setValue("conversation", event.target.value)}
               value={conversation}
             >
-              <option value="">すべて</option>
+              <option value="">すべての会話</option>
               {conversationOptions(graph.data).map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label} ({option.count})
@@ -118,9 +118,9 @@ export function RecallGraphPage() {
             </select>
           </label>
           <label>
-            Source
+            情報源
             <select
-              aria-label="Source"
+              aria-label="情報源"
               onChange={(event) => setValue("source", event.target.value)}
               value={source}
             >
@@ -130,18 +130,18 @@ export function RecallGraphPage() {
             </select>
           </label>
           <label>
-            From
+            開始日時
             <input
-              aria-label="From"
+              aria-label="開始日時"
               onChange={(event) => setValue("since", event.target.value)}
               type="datetime-local"
               value={since}
             />
           </label>
           <label>
-            Until
+            終了日時
             <input
-              aria-label="Until"
+              aria-label="終了日時"
               onChange={(event) => setValue("until", event.target.value)}
               type="datetime-local"
               value={until}
@@ -153,12 +153,12 @@ export function RecallGraphPage() {
             title="すべての検索条件・絞り込みを初期状態に戻す"
             type="button"
           >
-            リセット
+            条件リセット
           </button>
           <button
             className="secondary-button glossary-trigger-btn"
             onClick={() => setIsGlossaryOpen(true)}
-            title="主要用語の早見表を表示"
+            title="主要用語の早見表を表示 (? キー)"
             type="button"
           >
             <GlossaryIcon />
@@ -583,11 +583,11 @@ function NodeDetails({
 
       <div className="status-summary">
         <div className="status-summary-row">
-          <span>Type</span>
+          <span>ノード種別</span>
           <strong>{node.type}</strong>
         </div>
         <div className="status-summary-row">
-          <span>ID</span>
+          <span>ノードID</span>
           <div className="inline-copy-target">
             <code className="mono">{shortId(node.id)}</code>
             <button
@@ -601,11 +601,11 @@ function NodeDetails({
           </div>
         </div>
         <div className="status-summary-row">
-          <span>Retrieval count</span>
+          <span>想起回数</span>
           <strong>{node.retrieval_count ?? "—"}</strong>
         </div>
         <div className="status-summary-row">
-          <span>Last recalled</span>
+          <span>最終想起日時</span>
           <strong>{formatDate(node.last_recalled_at, true)}</strong>
         </div>
       </div>

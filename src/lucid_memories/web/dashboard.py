@@ -19,6 +19,11 @@ def run_dashboard(
 ) -> int:
     settings = replace(Settings.from_env(), host=host, port=port)
     settings.validate()
+    if not (settings.frontend_dist / "index.html").is_file():
+        print(
+            f"[warn] Frontend build not found at {settings.frontend_dist}. "
+            "Run 'npm --prefix src/lucid_memories/web/frontend run build' to build React frontend."
+        )
     handler = handler_factory(settings)
     server = ThreadingHTTPServer((settings.host, settings.port), handler)
     url = f"http://{settings.host}:{server.server_port}/"
@@ -36,14 +41,21 @@ def run_dashboard(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Serve the lucid-memories dashboard")
+    parser.add_argument(
+        "action",
+        nargs="?",
+        default=None,
+        help="Optional action (e.g. 'open' to launch browser)",
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--open", dest="open_browser", action="store_true")
     args = parser.parse_args(argv)
+    open_browser = args.open_browser or (args.action == "open")
     return run_dashboard(
         host=args.host,
         port=args.port,
-        open_browser=args.open_browser,
+        open_browser=open_browser,
     )
 
 

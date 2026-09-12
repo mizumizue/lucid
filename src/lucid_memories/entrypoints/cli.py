@@ -45,9 +45,24 @@ def main(argv: list[str] | None = None) -> int:
         parents=[shared],
         help="serve the local dashboard",
     )
+    p_dashboard.add_argument(
+        "action",
+        nargs="?",
+        default=None,
+        choices=["open", "start"],
+        help="optional action (e.g. 'open' to launch browser)",
+    )
     p_dashboard.add_argument("--host", default="127.0.0.1")
     p_dashboard.add_argument("--port", type=int, default=8765)
     p_dashboard.add_argument("--open", dest="open_browser", action="store_true")
+
+    p_open = sub.add_parser(
+        "open",
+        parents=[shared],
+        help="serve the local dashboard and open in browser",
+    )
+    p_open.add_argument("--host", default="127.0.0.1")
+    p_open.add_argument("--port", type=int, default=8765)
 
     p_search = sub.add_parser("search", parents=[shared])
     p_search.add_argument("query")
@@ -236,13 +251,22 @@ def main(argv: list[str] | None = None) -> int:
         _print(api.whoami(workspace=ws, conversation_id=cid))
     elif cmd == "status":
         _print(api.status(workspace=ws, conversation_id=cid))
-    elif cmd == "dashboard":
+    elif cmd == "open":
         from lucid_memories.web import dashboard
 
         return dashboard.run_dashboard(
             host=args.host,
             port=args.port,
-            open_browser=args.open_browser,
+            open_browser=True,
+        )
+    elif cmd == "dashboard":
+        from lucid_memories.web import dashboard
+
+        open_browser = args.open_browser or (args.action == "open")
+        return dashboard.run_dashboard(
+            host=args.host,
+            port=args.port,
+            open_browser=open_browser,
         )
     elif cmd == "search":
         _print(

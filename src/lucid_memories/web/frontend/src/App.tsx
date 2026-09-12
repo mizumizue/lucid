@@ -15,29 +15,36 @@ import {
   SessionsPage,
 } from "./views";
 import { RefreshProvider } from "./hooks";
+import { ThemeProvider, useTheme } from "./theme";
+
+function ThemedToaster() {
+  const { resolvedTheme } = useTheme();
+  return <Toaster closeButton position="bottom-right" richColors theme={resolvedTheme} />;
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <RefreshProvider>
-        <Toaster closeButton position="bottom-right" richColors />
-        <Routes>
-          <Route element={<AppShell />} path="/">
-            <Route element={<OverviewPage />} index />
-            <Route element={<SessionsPage />} path="sessions" />
-            <Route element={<SessionDetailPage />} path="sessions/:id" />
-            <Route element={<JobsPage />} path="jobs" />
-            <Route element={<MemoryPage />} path="memory" />
-            <Route element={<RecallGraphPage />} path="recall-graph" />
-            <Route element={<ActivityPage />} path="activity" />
-            <Route element={<ArtifactDetailPage />} path="artifacts/:id" />
-            <Route element={<DailyPage />} path="daily" />
-            <Route element={<GuidePage />} path="guide" />
-            <Route element={<Navigate replace to="/" />} path="*" />
-          </Route>
-        </Routes>
-      </RefreshProvider>
+      <ThemeProvider>
+        <RefreshProvider>
+          <ThemedToaster />
+          <Routes>
+            <Route element={<AppShell />} path="/">
+              <Route element={<OverviewPage />} index />
+              <Route element={<SessionsPage />} path="sessions" />
+              <Route element={<SessionDetailPage />} path="sessions/:id" />
+              <Route element={<JobsPage />} path="jobs" />
+              <Route element={<MemoryPage />} path="memory" />
+              <Route element={<RecallGraphPage />} path="recall-graph" />
+              <Route element={<ActivityPage />} path="activity" />
+              <Route element={<ArtifactDetailPage />} path="artifacts/:id" />
+              <Route element={<DailyPage />} path="daily" />
+              <Route element={<GuidePage />} path="guide" />
+              <Route element={<Navigate replace to="/" />} path="*" />
+            </Route>
+          </Routes>
+        </RefreshProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }
-
