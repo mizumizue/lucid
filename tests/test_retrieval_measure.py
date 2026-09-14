@@ -237,7 +237,10 @@ class RetrievalMeasureTests(unittest.TestCase):
         self.api.save_prompt("anything to digest", conversation_id=self.cid, workspace=self.ws)
         from unittest.mock import patch
 
-        with patch("lucid_memories.core.api.improve_retrieval", side_effect=RuntimeError("ladybug down")):
+        with patch(
+            "lucid_memories.core.retrieval_ops.improve_retrieval",
+            side_effect=RuntimeError("ladybug down"),
+        ):
             digest = self.api.digest_text(self.cid, workspace=self.ws)
         self.assertIn("eval: error=", digest)
         self.assertNotIn("eval: gaps=none", digest)

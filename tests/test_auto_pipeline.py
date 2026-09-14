@@ -261,6 +261,7 @@ class AutoPipelineTests(unittest.TestCase):
                 "artifact",
                 "measure",
                 "memory",
+                "persona_workspace",
             },
         )
 

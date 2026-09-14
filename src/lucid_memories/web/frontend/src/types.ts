@@ -12,17 +12,29 @@ export type ListResponse<T> = {
   pagination: Pagination;
 };
 
+export type SessionKind = "main" | "sub" | "background";
+export type SessionOrigin = "human" | "agent" | "unknown";
+
 export type Session = {
   conversation_id: string;
+  parent_conversation_id?: string | null;
+  parent_title?: string | null;
   title?: string | null;
+  summary?: string | null;
   status?: string | null;
   model?: string | null;
+  composer_mode?: string | null;
+  is_background?: number | boolean | null;
   last_prompt?: string | null;
   last_heartbeat_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   job_count?: number;
   compaction_count?: number;
+  session_kind?: SessionKind | null;
+  origin?: SessionOrigin | null;
+  subagent_types?: string[] | null;
+  brief?: string | null;
 };
 
 export type Job = {
@@ -90,6 +102,40 @@ export type Usage = {
   cost_usd?: number | null;
 };
 
+export type McpUsage = {
+  id?: string;
+  created_at?: string | null;
+  generation_id?: string | null;
+  tool_name?: string | null;
+  tokens?: number | null;
+  total_tokens?: number | null;
+  budget?: number | null;
+  tokens_used?: number | null;
+  is_large?: boolean | null;
+};
+
+export type McpTokenStats = {
+  sample_size: number;
+  mean?: number | null;
+  median?: number | null;
+  p75?: number | null;
+  p90?: number | null;
+  p95?: number | null;
+  max?: number | null;
+  large_threshold?: number | null;
+  large_label?: string | null;
+};
+
+export type McpSummary = {
+  status: "available" | "no_events" | "unavailable" | string;
+  available: boolean;
+  events: number;
+  tokens: number;
+  by_tool: Array<{ tool: string; events: number; tokens: number; stats?: McpTokenStats }>;
+  stats: McpTokenStats;
+  message: string;
+};
+
 export type Compaction = {
   id?: string;
   created_at?: string | null;
@@ -125,6 +171,7 @@ export type Overview = {
     cost_usd: number;
     message: string;
   };
+  mcp: McpSummary;
   index: {
     available: boolean;
     events: number;
@@ -236,6 +283,8 @@ export type DailyPoint = {
   output_tokens: number;
   cached_tokens: number;
   cost_usd: number;
+  mcp_calls: number;
+  mcp_tokens: number;
 };
 
 export type DailyResponse = {
@@ -349,6 +398,7 @@ export type SessionDetail = {
     jobs: Job[];
     events: ConversationEvent[];
     usage: Usage[];
+    mcp: McpUsage[];
     artifacts: Artifact[];
     compactions: Compaction[];
   };

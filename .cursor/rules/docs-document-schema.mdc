@@ -15,7 +15,7 @@ alwaysApply: false
 | `docs/needs/` | `need` | `NEED-` |
 | `docs/actors/` | `actor` | `ACT-` |
 | `docs/usecases/` | `use_case` | `UC-` |
-| `docs/requirements/` | `requirement` | `REQ-` |
+| `docs/requirements/` | `requirement` | `REQ-`（必須区分 `requirement_class`: functional / non_functional） |
 | `docs/specifications/` | `specification` | `SPEC-` |
 | `docs/design/` | `design` | `DSN-` |
 | `docs/decisions/` | `decision` | `ADR-` |
@@ -107,6 +107,9 @@ links: []
   範囲に限定し、別の目的は別ファイルにする。
 - `requirement` は利用者またはシステムが達成する1つの観測可能な成果を記述する。
   方法、製品名、データ構造、コンポーネント名などの実装手段は書かない。
+  フロントマターには `requirement_class` を必須とし、`functional`（機能要件・FR）または
+  `non_functional`（非機能要件・NFR）のいずれかとする。`criticality` は任意（`high`,
+  `medium`, `low`。省略時 `medium`）。
 - `Acceptance Criteria` は同じ成果に対する検証条件を `- AC-001: Given ... When ... Then ...`
   の形式で1項目ずつ記載する。
 - `specification` は1つの振る舞いまたは契約を、入力・出力・異常系・制約まで具体化する。
@@ -122,8 +125,10 @@ links: []
 - `quality_assurance` は要件・仕様に対する品質基準、検証方法、証跡、完了判定を記録する。
   要件や仕様の定義そのもの、または実装構造の決定を重複して記載しない。
 - `test_case` は単体、内部結合、外部結合、総合、受入のいずれか1つの検証手順を記録する。
-  フロントマターには `test_level` と `verifies` を必須とし、`test_level` は
+  フロントマターには `test_level`、`test_method`、`verifies` を必須とし、`test_level` は
   `unit`, `integration_internal`, `integration_external`, `system`, `acceptance` のいずれか、
+  `test_method` は `unit_mock`, `unit_contract`, `property_based`, `api_contract`, `scenario`,
+  `e2e`, `performance_load`, `security`, `exploratory_manual` のいずれか、
   `verifies` は検証対象の `REQ-`, `SPEC-`, `UC-`, `DSN-` のIDを持つ配列とする。
   テストコードは `tests/`、実行結果や証跡の生成物は `test-results/` に置き、
   `docs/test-cases/` にはテストケースの定義だけを置く。

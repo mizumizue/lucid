@@ -29,6 +29,8 @@ class CollectionQuery:
     text: str = ""
     status: str = ""
     model: str = ""
+    session_kind: str = ""
+    origin: str = ""
     scope: str = ""
     start: str = ""
     end: str = ""
@@ -41,6 +43,8 @@ def query_from_params(params: dict[str, list[str]]) -> CollectionQuery:
         text=first(params, "q"),
         status=first(params, "status"),
         model=first(params, "model"),
+        session_kind=first(params, "kind"),
+        origin=first(params, "origin"),
         scope=first(params, "scope"),
         start=first(params, "from"),
         end=first(params, "to"),

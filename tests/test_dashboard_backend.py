@@ -29,15 +29,15 @@ class DashboardServiceTests(unittest.TestCase):
             """
             CREATE TABLE sessions (
               conversation_id TEXT PRIMARY KEY, parent_conversation_id TEXT,
-              title TEXT, status TEXT, model TEXT, composer_mode TEXT,
+              title TEXT, summary TEXT, status TEXT, model TEXT, composer_mode TEXT,
               is_background INTEGER, transcript_path TEXT, workspace_roots_json TEXT,
               last_generation_id TEXT,
               last_heartbeat_at TEXT, created_at TEXT, updated_at TEXT
             );
             CREATE TABLE jobs (
               id TEXT PRIMARY KEY, conversation_id TEXT, kind TEXT, status TEXT,
-              title TEXT, summary TEXT, subagent_type TEXT, started_at TEXT,
-              updated_at TEXT, ended_at TEXT, rev INTEGER
+              title TEXT, summary TEXT, subagent_id TEXT, subagent_type TEXT,
+              started_at TEXT, updated_at TEXT, ended_at TEXT, rev INTEGER
             );
             CREATE TABLE conversation_events (
               id TEXT PRIMARY KEY, conversation_id TEXT, event_type TEXT,
@@ -54,12 +54,12 @@ class DashboardServiceTests(unittest.TestCase):
               cache_read_tokens INTEGER, cache_write_tokens INTEGER, cost_usd REAL
             );
             INSERT INTO sessions VALUES
-              ('session-1', NULL, 'Alpha', 'active', 'model-a', 'agent', 0, NULL, NULL,
+              ('session-1', NULL, 'Alpha', NULL, 'active', 'model-a', 'agent', 0, NULL, NULL,
                NULL, '2026-01-03T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-03T00:00:00Z'),
-              ('session-2', NULL, 'Beta', 'done', 'model-b', 'agent', 0, NULL, NULL,
+              ('session-2', NULL, 'Beta', NULL, 'done', 'model-b', 'agent', 0, NULL, NULL,
                NULL, '2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z');
             INSERT INTO jobs VALUES
-              ('job-1', 'session-1', 'test', 'done', 'First', NULL, NULL,
+              ('job-1', 'session-1', 'test', 'done', 'First', NULL, NULL, NULL,
                '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z', 1);
             INSERT INTO conversation_events VALUES
               ('event-1', 'session-1', 'afterAgentResponse', NULL, 'generated', NULL,
@@ -81,6 +81,59 @@ class DashboardServiceTests(unittest.TestCase):
         self.assertEqual(payload["usage"]["status"], "available")
         self.assertTrue(payload["capabilities"]["conversation_events"])
         self.assertEqual(payload["database"], "bus.sqlite")
+        self.assertEqual(payload["mcp"]["events"], 0)
+
+    def test_mcp_usage_is_separated_from_model_tokens(self) -> None:
+        from datetime import date
+
+        today = date.today().isoformat()
+        connection = sqlite3.connect(self.path)
+        connection.executescript(
+            f"""
+            ALTER TABLE usage_events ADD COLUMN event_type TEXT;
+            ALTER TABLE usage_events ADD COLUMN total_tokens INTEGER;
+            ALTER TABLE usage_events ADD COLUMN generation_id TEXT;
+            ALTER TABLE usage_events ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{{}}';
+            UPDATE usage_events SET event_type = 'postToolUse', created_at = '{today}T00:00:00Z';
+            INSERT INTO usage_events(
+              id, conversation_id, created_at, input_tokens, output_tokens,
+              cache_read_tokens, cache_write_tokens, cost_usd, event_type,
+              total_tokens, generation_id, metadata_json
+            ) VALUES
+              ('mcp-1', 'session-1', '{today}T00:00:00Z', 0, 80, 0, 0, 0,
+               'mcp', 80, 'gen-1', '{{"source":"mcp","tool_name":"recall","budget":2000}}'),
+              ('mcp-2', 'session-1', '{today}T00:01:00Z', 0, 20, 0, 0, 0,
+               'mcp', 20, 'gen-1', '{{"source":"mcp","tool_name":"whoami"}}'),
+              ('mcp-3', 'session-1', '{today}T00:02:00Z', 0, 200, 0, 0, 0,
+               'mcp', 200, 'gen-1', '{{"source":"mcp","tool_name":"status"}}');
+            """
+        )
+        connection.commit()
+        connection.close()
+        payload = self.service.overview()
+        self.assertEqual(payload["usage"]["input_tokens"], 10)
+        self.assertEqual(payload["usage"]["output_tokens"], 20)
+        self.assertEqual(payload["mcp"]["status"], "available")
+        self.assertEqual(payload["mcp"]["events"], 3)
+        self.assertEqual(payload["mcp"]["tokens"], 300)
+        self.assertEqual(payload["mcp"]["stats"]["mean"], 100)
+        self.assertEqual(payload["mcp"]["stats"]["median"], 80)
+        self.assertEqual(payload["mcp"]["stats"]["large_threshold"], 160)
+        tools = {item["tool"]: item for item in payload["mcp"]["by_tool"]}
+        self.assertEqual(tools["recall"]["events"], 1)
+        self.assertEqual(tools["recall"]["tokens"], 80)
+        detail = self.service.session("session-1")
+        self.assertEqual(len(detail["relationships"]["usage"]), 1)
+        self.assertEqual(detail["relationships"]["usage"][0]["input_tokens"], 10)
+        self.assertEqual(len(detail["relationships"]["mcp"]), 3)
+        by_tool = {item["tool_name"]: item for item in detail["relationships"]["mcp"]}
+        self.assertFalse(by_tool["whoami"]["is_large"])
+        self.assertFalse(by_tool["recall"]["is_large"])
+        self.assertTrue(by_tool["status"]["is_large"])
+        daily = {row["day"]: row for row in self.service.daily(3)["data"]}
+        self.assertEqual(daily[today]["mcp_calls"], 3)
+        self.assertEqual(daily[today]["mcp_tokens"], 300)
+        self.assertEqual(daily[today]["input_tokens"], 10)
 
     def test_missing_optional_tables_return_partial_data(self) -> None:
         connection = sqlite3.connect(self.path)
@@ -107,6 +160,81 @@ class DashboardServiceTests(unittest.TestCase):
     def test_response_event_is_used_as_session_output(self) -> None:
         detail = self.service.session("session-1")
         self.assertEqual(detail["input_output"]["output"], "generated")
+
+    def test_sessions_include_derived_metadata(self) -> None:
+        connection = sqlite3.connect(self.path)
+        connection.executescript(
+            """
+            INSERT INTO sessions VALUES
+              ('session-sub', 'session-1', 'Sub session', NULL, 'active', 'model-c', 'agent', 0, NULL, NULL,
+               NULL, '2026-01-04T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-04T00:00:00Z');
+            INSERT INTO conversation_events VALUES
+              ('event-user', 'session-1', 'beforeSubmitPrompt', 'user', NULL, 'hello dashboard',
+               '2026-01-01T00:00:00Z');
+            INSERT INTO jobs(
+              id, conversation_id, kind, status, title, summary,
+              subagent_id, subagent_type, started_at, updated_at, ended_at, rev
+            ) VALUES (
+              'job-sub', 'session-1', 'subagent', 'done', 'Explore task', 'found files',
+              'session-sub', 'explore',
+              '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z', 1
+            );
+            """
+        )
+        connection.commit()
+        connection.close()
+
+        payload = self.service.sessions(CollectionQuery(page=Page(number=1, size=10)))
+        by_id = {row["conversation_id"]: row for row in payload["data"]}
+        self.assertEqual(by_id["session-1"]["session_kind"], "main")
+        self.assertEqual(by_id["session-1"]["origin"], "human")
+        self.assertEqual(by_id["session-1"]["subagent_types"], ["explore"])
+        self.assertIn("hello dashboard", by_id["session-1"]["brief"])
+        self.assertEqual(by_id["session-sub"]["session_kind"], "sub")
+        self.assertEqual(by_id["session-sub"]["parent_title"], "Alpha")
+
+        detail = self.service.session("session-sub")
+        self.assertEqual(detail["data"]["session_kind"], "sub")
+        self.assertEqual(detail["data"]["parent_conversation_id"], "session-1")
+
+    def test_sessions_filter_by_kind_and_origin(self) -> None:
+        connection = sqlite3.connect(self.path)
+        connection.executescript(
+            """
+            INSERT INTO conversation_events VALUES
+              ('event-human', 'session-1', 'beforeSubmitPrompt', 'user', NULL, 'hello dashboard',
+               '2026-01-01T00:00:00Z'),
+              ('event-agent', 'session-2', 'postToolUse', 'tool', 'tool output', NULL,
+               '2026-01-01T00:00:00Z');
+            INSERT INTO sessions VALUES
+              ('session-sub', 'session-1', 'Sub session', NULL, 'active', 'model-c', 'agent', 0, NULL, NULL,
+               NULL, '2026-01-04T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-04T00:00:00Z');
+            """
+        )
+        connection.commit()
+        connection.close()
+
+        sub_only = self.service.sessions(
+            CollectionQuery(session_kind="sub", page=Page(number=1, size=10))
+        )
+        self.assertEqual(sub_only["pagination"]["total"], 1)
+        self.assertEqual(sub_only["data"][0]["conversation_id"], "session-sub")
+
+        human_only = self.service.sessions(
+            CollectionQuery(origin="human", page=Page(number=1, size=10))
+        )
+        self.assertEqual(
+            {row["conversation_id"] for row in human_only["data"]},
+            {"session-1"},
+        )
+
+        agent_only = self.service.sessions(
+            CollectionQuery(origin="agent", page=Page(number=1, size=10))
+        )
+        self.assertEqual(
+            {row["conversation_id"] for row in agent_only["data"]},
+            {"session-2"},
+        )
 
     def test_unknown_session_raises_not_found(self) -> None:
         with self.assertRaises(LookupError):

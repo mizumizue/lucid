@@ -7,9 +7,18 @@ import {
   Panel,
   PanelHeading,
   ResourceState,
+  SessionMetaBadges,
   StatusBadge,
 } from "../components";
-import { formatCost, formatDate, formatNumber, sessionDisplayTitle, storageScopeLabel } from "../format";
+import {
+  formatCompactNumber,
+  formatCost,
+  formatDate,
+  formatTokenCount,
+  sessionDisplayTitle,
+  shortId,
+  storageScopeLabel,
+} from "../format";
 import { useRefresh, useResource } from "../hooks";
 import { EventTable } from "./ActivityPage";
 import { JobTable } from "./CollectionPages";
@@ -37,11 +46,30 @@ function SessionDetailContent({ detail }: { detail: SessionDetail }) {
     <div className="detail-stack">
       <Panel>
         <div className="panel-kicker">SESSION DETAIL</div>
-        <h2>{sessionDisplayTitle(session.title, detail.input_output.input, session.conversation_id)}</h2>
+        <h2>{sessionDisplayTitle(session.title, detail.input_output.input, session.conversation_id, session.brief)}</h2>
+        <SessionMetaBadges session={session} />
+        {(session.summary || session.brief) && (
+          <p className="session-brief">{session.summary || session.brief}</p>
+        )}
+        {session.summary && session.brief && session.summary !== session.brief && (
+          <p className="session-brief muted">ヒューリスティック: {session.brief}</p>
+        )}
         <div className="detail-grid">
           <div><label>会話ID</label><p className="mono">{session.conversation_id}</p></div>
+          {session.parent_conversation_id && (
+            <div>
+              <label>親セッション</label>
+              <p>
+                <Link className="link" to={`/sessions/${encodeURIComponent(session.parent_conversation_id)}`}>
+                  {session.parent_title || shortId(session.parent_conversation_id)}
+                </Link>
+                <small className="mono">{session.parent_conversation_id}</small>
+              </p>
+            </div>
+          )}
           <div><label>状態</label><p><StatusBadge value={session.status} /></p></div>
           <div><label>モデル</label><p>{session.model || "未記録"}</p></div>
+          {session.composer_mode && <div><label>Composer</label><p>{session.composer_mode}</p></div>}
           <div><label>最終更新</label><p><DateCell value={session.updated_at} /></p></div>
         </div>
       </Panel>
@@ -68,7 +96,7 @@ function SessionDetailContent({ detail }: { detail: SessionDetail }) {
             <ul className="detail-list">
               {detail.relationships.usage.map((event) => (
                 <li key={event.id}>
-                  {formatDate(event.created_at, true)} · {event.model || "未記録"} · in {formatNumber(event.input_tokens)} · out {formatNumber(event.output_tokens)} · {formatCost(event.cost_usd)}
+                  {formatDate(event.created_at, true)} · {event.model || "未記録"} · in {formatTokenCount(event.input_tokens)} · out {formatTokenCount(event.output_tokens)} · {formatCost(event.cost_usd)}
                 </li>
               ))}
             </ul>
@@ -76,6 +104,25 @@ function SessionDetailContent({ detail }: { detail: SessionDetail }) {
             <EmptyState message="トークン使用量のイベント記録はありません。" />
           )}
         </Panel>
+        <Panel>
+          <PanelHeading kicker={`MCP (${detail.relationships.mcp?.length || 0})`} title="MCP 利用量" />
+          {detail.relationships.mcp?.length ? (
+            <ul className="detail-list">
+              {detail.relationships.mcp.map((event) => (
+                <li key={event.id}>
+                  {formatDate(event.created_at, true)} · {event.tool_name || "未記録"} · {formatTokenCount(event.tokens ?? event.total_tokens)}
+                  {event.is_large ? " · 大" : ""}
+                  {event.budget ? ` / ${formatCompactNumber(event.budget)}` : ""}
+                  {event.generation_id ? ` · ${event.generation_id.slice(0, 8)}` : ""}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState message="MCP 利用量の記録はありません。" />
+          )}
+        </Panel>
+      </div>
+      <div className="content-grid">
         <Panel>
           <PanelHeading kicker={`ARTIFACTS (${detail.relationships.artifacts.length})`} title="生成ファイル成果物" />
           {detail.relationships.artifacts.length ? (
@@ -108,7 +155,7 @@ function SessionDetailContent({ detail }: { detail: SessionDetail }) {
           <ul className="detail-list">
             {detail.relationships.compactions.map((event) => (
               <li key={event.id}>
-                {formatDate(event.created_at, true)} · {formatNumber(event.context_tokens)} tokens · {event.context_usage_percent == null ? "—" : `${Math.round(event.context_usage_percent)}%`}
+                {formatDate(event.created_at, true)} · {formatTokenCount(event.context_tokens)} · {event.context_usage_percent == null ? "—" : `${Math.round(event.context_usage_percent)}%`}
               </li>
             ))}
           </ul>

@@ -7,10 +7,11 @@ import {
   ResourceState,
   SearchInput,
   SessionLink,
+  SessionMetaBadges,
   StatusBadge,
   ViewIntro,
 } from "../components";
-import { formatCost, formatNumber, sessionDisplayTitle, shortId, truncate } from "../format";
+import { formatCompactNumber, formatCost, formatNumber, sessionDisplayTitle, shortId, truncate } from "../format";
 import { useDebouncedValue, usePageQuery, useRefresh, useResource } from "../hooks";
 import type { DailyPoint, Job, Session } from "../types";
 
@@ -19,14 +20,16 @@ export function SessionsPage() {
   const { revision } = useRefresh();
   const q = searchParams.get("q") || "";
   const status = searchParams.get("status") || "";
+  const kind = searchParams.get("kind") || "";
+  const origin = searchParams.get("origin") || "";
   const model = searchParams.get("model") || "";
   const from = searchParams.get("from") || "";
   const to = searchParams.get("to") || "";
   const page = Number(searchParams.get("page") || "1");
   const debouncedQ = useDebouncedValue(q);
   const resource = useResource(
-    (signal) => api.sessions({ q: debouncedQ, status, model, from, to, page, limit: 25 }, signal),
-    [debouncedQ, status, model, from, to, page, revision],
+    (signal) => api.sessions({ q: debouncedQ, status, kind, origin, model, from, to, page, limit: 25 }, signal),
+    [debouncedQ, status, kind, origin, model, from, to, page, revision],
   );
   return (
     <div className="view">
@@ -47,6 +50,24 @@ export function SessionsPage() {
               <option value="idle">アイドル (idle)</option>
               <option value="done">完了 (done)</option>
               <option value="stale">停止 / ステール (stale)</option>
+            </select>
+          </label>
+          <label>
+            種別
+            <select onChange={(event) => setValue("kind", event.target.value)} value={kind}>
+              <option value="">すべて</option>
+              <option value="main">メイン</option>
+              <option value="sub">サブ</option>
+              <option value="background">バックグラウンド</option>
+            </select>
+          </label>
+          <label>
+            起点
+            <select onChange={(event) => setValue("origin", event.target.value)} value={origin}>
+              <option value="">すべて</option>
+              <option value="human">人間起点</option>
+              <option value="agent">Agent起点</option>
+              <option value="unknown">起点不明</option>
             </select>
           </label>
           <label>モデル<input onChange={(event) => setValue("model", event.target.value)} placeholder="例: gpt-4o, claude-3-7..." value={model} /></label>
@@ -75,9 +96,10 @@ function SessionTable({ rows }: { rows: Session[] }) {
         <thead>
           <tr>
             <th>セッション</th>
+            <th>種別</th>
             <th>状態</th>
             <th>モデル</th>
-            <th>直近のプロンプト入力</th>
+            <th>概要</th>
             <th>ジョブ数</th>
             <th>最終更新</th>
           </tr>
@@ -86,12 +108,27 @@ function SessionTable({ rows }: { rows: Session[] }) {
           {rows.map((session) => (
             <tr key={session.conversation_id}>
               <td className="primary">
-                <SessionLink fallback={session.last_prompt} id={session.conversation_id} title={session.title} />
-                <small>{shortId(session.conversation_id)}</small>
+                <SessionLink
+                  fallback={session.brief || session.last_prompt}
+                  id={session.conversation_id}
+                  title={sessionDisplayTitle(session.title, session.last_prompt, session.conversation_id, session.brief)}
+                />
+                <small className="mono">{shortId(session.conversation_id)}</small>
+                {session.parent_conversation_id && (
+                  <small className="session-parent-link">
+                    親:{" "}
+                    <Link className="link" to={`/sessions/${encodeURIComponent(session.parent_conversation_id)}`}>
+                      {session.parent_title || shortId(session.parent_conversation_id)}
+                    </Link>
+                  </small>
+                )}
               </td>
+              <td><SessionMetaBadges session={session} /></td>
               <td><StatusBadge value={session.status} /></td>
               <td className="mono">{session.model || "未記録"}</td>
-              <td className="truncate" title={session.last_prompt || ""}>{truncate(session.last_prompt, 100)}</td>
+              <td className="truncate" title={session.brief || session.last_prompt || ""}>
+                {truncate(session.brief || session.last_prompt, 100) || "—"}
+              </td>
               <td className="mono">{formatNumber(session.job_count)}</td>
               <td><DateCell value={session.updated_at} /></td>
             </tr>
@@ -195,7 +232,7 @@ export function DailyPage() {
   return (
     <div className="view">
       <ViewIntro
-        description="セッション数、ジョブ実行数、コンパクション、想起イベント、Relayパックの日次推移レポートです。"
+        description="セッション数、ジョブ実行数、コンパクション、想起イベント、MCP 利用量、Relayパックの日次推移レポートです。"
         kicker="TREND REPORT"
         title="日次アクティビティ集計 (Daily)"
       >
@@ -234,6 +271,8 @@ function DailyTable({ rows }: { rows: DailyPoint[] }) {
             <th>出力トークン</th>
             <th>キャッシュ</th>
             <th>推定コスト</th>
+            <th>MCP 回数</th>
+            <th>MCP トークン</th>
             <th>想起回数</th>
             <th>Relayパック</th>
           </tr>
@@ -246,11 +285,13 @@ function DailyTable({ rows }: { rows: DailyPoint[] }) {
               <td className="mono">{formatNumber(day.jobs)}</td>
               <td className="mono">{formatNumber(day.completed_jobs)}</td>
               <td className="mono">{formatNumber(day.compactions)}</td>
-              <td className="mono">{formatNumber(day.context_tokens)}</td>
-              <td className="mono">{formatNumber(day.input_tokens)}</td>
-              <td className="mono">{formatNumber(day.output_tokens)}</td>
-              <td className="mono">{formatNumber(day.cached_tokens)}</td>
+              <td className="mono" title={formatNumber(day.context_tokens)}>{formatCompactNumber(day.context_tokens)}</td>
+              <td className="mono" title={formatNumber(day.input_tokens)}>{formatCompactNumber(day.input_tokens)}</td>
+              <td className="mono" title={formatNumber(day.output_tokens)}>{formatCompactNumber(day.output_tokens)}</td>
+              <td className="mono" title={formatNumber(day.cached_tokens)}>{formatCompactNumber(day.cached_tokens)}</td>
               <td className="mono">{formatCost(day.cost_usd)}</td>
+              <td className="mono">{formatNumber(day.mcp_calls)}</td>
+              <td className="mono" title={formatNumber(day.mcp_tokens)}>{formatCompactNumber(day.mcp_tokens)}</td>
               <td className="mono">{formatNumber(day.retrievals)}</td>
               <td className="mono">{formatNumber(day.packs)}</td>
             </tr>

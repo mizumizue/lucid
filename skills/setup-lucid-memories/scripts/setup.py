@@ -324,6 +324,19 @@ def ensure_persona(repo_root: Path) -> None:
     else:
         log(f"Existing persona found (preserved): {persona_json}")
 
+    types_dir = persona_dir / "types"
+    types_dir.mkdir(parents=True, exist_ok=True)
+    types_gitkeep = types_dir / ".gitkeep"
+    if not types_gitkeep.exists():
+        types_gitkeep.touch()
+    src_path = repo_root / "src"
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
+    from lucid_memories.core import workspace_persona as workspace_persona_mod
+
+    workspace_persona_mod.ensure_type_templates()
+    log(f"Ensured workspace persona type templates under: {types_dir}")
+
 
 def probe_ollama() -> None:
     url = "http://127.0.0.1:11434/api/tags"

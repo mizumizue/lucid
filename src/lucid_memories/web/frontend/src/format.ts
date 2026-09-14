@@ -2,6 +2,21 @@ export function formatNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat("ja-JP").format(Number(value || 0));
 }
 
+export function formatCompactNumber(value: number | null | undefined): string {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  const abs = Math.abs(n);
+  if (abs < 1000) return formatNumber(n);
+  const [div, suffix] = abs < 1_000_000 ? [1_000, "k"] as const : [1_000_000, "M"] as const;
+  const compact = n / div;
+  const rounded = Math.abs(compact) >= 10 ? compact.toFixed(0) : compact.toFixed(1);
+  return `${Number(rounded)}${suffix}`;
+}
+
+export function formatTokenCount(value: number | null | undefined): string {
+  return `${formatCompactNumber(value)} tok`;
+}
+
 export function formatCost(value: number | null | undefined): string {
   return `$${Number(value || 0).toFixed(4)}`;
 }
@@ -28,11 +43,53 @@ export function sessionDisplayTitle(
   title: string | null | undefined,
   lastPrompt: string | null | undefined,
   conversationId: string | null | undefined,
+  brief?: string | null,
 ): string {
   if (title?.trim()) return title.trim();
-  const prompt = lastPrompt?.split(/\r?\n/, 1)[0].trim();
+  const prompt = brief?.split(/\r?\n/, 1)[0].trim()
+    || lastPrompt?.split(/\r?\n/, 1)[0].trim();
   if (prompt) return truncate(prompt, 80);
   return conversationId ? `Session ${shortId(conversationId)}` : "Session";
+}
+
+export function sessionKindLabel(value: string | null | undefined): string {
+  return (
+    {
+      main: "メイン",
+      sub: "サブ",
+      background: "BG",
+    } as Record<string, string>
+  )[value || ""] || "不明";
+}
+
+export function sessionOriginLabel(value: string | null | undefined): string {
+  return (
+    {
+      human: "人間起点",
+      agent: "Agent起点",
+      unknown: "起点不明",
+    } as Record<string, string>
+  )[value || ""] || "起点不明";
+}
+
+export function sessionKindClass(value: string | null | undefined): string {
+  return (
+    {
+      main: "status-pill-indigo",
+      sub: "status-pill-yellow",
+      background: "status-pill-coral",
+    } as Record<string, string>
+  )[value || ""] || "";
+}
+
+export function sessionOriginClass(value: string | null | undefined): string {
+  return (
+    {
+      human: "status-pill-mint",
+      agent: "status-pill-indigo",
+      unknown: "",
+    } as Record<string, string>
+  )[value || ""] || "";
 }
 
 export function formatBytes(value: number | null | undefined): string {

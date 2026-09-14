@@ -213,9 +213,17 @@ def load_persona(path: Path | None = None) -> dict[str, Any]:
     return build_persona(source)
 
 
-def get_injection(path: Path | None = None) -> dict[str, Any]:
-    persona = load_persona(path)
-    rendered = render_persona(persona)
+def get_injection(
+    path: Path | None = None,
+    *,
+    workspace_root: str | None = None,
+) -> dict[str, Any]:
+    if workspace_root:
+        from lucid_memories.core import workspace_persona
+
+        return workspace_persona.compose_injection(workspace_root)
+    persona_doc = load_persona(path)
+    rendered = render_persona(persona_doc)
     return {
         "content": rendered["content"],
         "token_estimate": rendered["token_estimate"],

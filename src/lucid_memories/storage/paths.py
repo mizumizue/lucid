@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 16
 STALE_AFTER_SECONDS = 15 * 60
 DEFAULT_LOAD_BUDGET = 2000
 INLINE_BODY_LIMIT = 2000

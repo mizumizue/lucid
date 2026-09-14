@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import statistics
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Iterable
 
 import sqlite3
 import sys
+
+from lucid_memories.core.session_metadata import enrich_session_detail, enrich_sessions
 
 from .db import DatabaseInfo, one, rows, table_columns, table_exists
 
@@ -94,6 +97,7 @@ class DashboardRepository:
             recent=True,
         )["data"]
         usage = self.usage_summary()
+        mcp = self.mcp_summary()
         index = {
             "events": self.count("conversation_events"),
             "artifacts": self.count("artifacts"),
@@ -107,6 +111,7 @@ class DashboardRepository:
             "models": models,
             "recent_sessions": recent_sessions,
             "usage": usage,
+            "mcp": mcp,
             "index": index,
             "memory": self.memory_status(),
             "embeddings": self.embedding_status(),
@@ -143,6 +148,7 @@ class DashboardRepository:
                 ("cost_usd", "cost_usd"),
             )
         }
+        source_filter = usage_source_sql("u", columns, mcp=False)
         result = one(
             self.connection,
             f"""
@@ -153,6 +159,7 @@ class DashboardRepository:
                    COALESCE(SUM({expressions["cache_write_tokens"]}), 0) AS cache_write_tokens,
                    COALESCE(SUM({expressions["cost_usd"]}), 0) AS cost_usd
             FROM usage_events u
+            WHERE {source_filter}
             """,
         )
         result["status"] = "available" if result["events"] else "no_events"
@@ -162,6 +169,71 @@ class DashboardRepository:
             if result["events"]
             else "usage_events は存在しますが、まだイベントがありません。"
         )
+        return result
+
+    def mcp_summary(self) -> dict:
+        unavailable = {
+            "status": "unavailable",
+            "available": False,
+            "events": 0,
+            "tokens": 0,
+            "by_tool": [],
+            "stats": {"sample_size": 0},
+            "message": "usage_events が利用できないため、MCP 利用量を集計できません。",
+        }
+        if not self.has("usage_events"):
+            return unavailable
+        columns = table_columns(self.connection, "usage_events")
+        if "event_type" not in columns:
+            return {
+                **unavailable,
+                "message": "MCP 利用量の種別列が無いため、集計できません。",
+            }
+        token_expr = mcp_token_sql("u", columns)
+        result = one(
+            self.connection,
+            f"""
+            SELECT COUNT(*) AS events,
+                   COALESCE(SUM({token_expr}), 0) AS tokens
+            FROM usage_events u
+            WHERE {usage_source_sql("u", columns, mcp=True)}
+            """,
+        )
+        tool_expr = mcp_tool_sql("u", columns)
+        by_tool = rows(
+            self.connection,
+            f"""
+            SELECT {tool_expr} AS tool, COUNT(*) AS events,
+                   COALESCE(SUM({token_expr}), 0) AS tokens
+            FROM usage_events u
+            WHERE {usage_source_sql("u", columns, mcp=True)}
+            GROUP BY {tool_expr}
+            ORDER BY tokens DESC, tool
+            """,
+        )
+        samples = rows(
+            self.connection,
+            f"""
+            SELECT {tool_expr} AS tool, {token_expr} AS tokens
+            FROM usage_events u
+            WHERE {usage_source_sql("u", columns, mcp=True)}
+            """,
+        )
+        token_values = [int(item["tokens"] or 0) for item in samples]
+        by_tool_tokens: dict[str, list[int]] = {}
+        for item in samples:
+            tool = str(item["tool"] or "unknown")
+            by_tool_tokens.setdefault(tool, []).append(int(item["tokens"] or 0))
+        for item in by_tool:
+            tool = str(item["tool"] or "unknown")
+            item["stats"] = token_distribution(by_tool_tokens.get(tool, []))
+        events = int(result["events"] or 0)
+        stats = token_distribution(token_values)
+        result["status"] = "available" if events else "no_events"
+        result["available"] = bool(events)
+        result["by_tool"] = by_tool
+        result["stats"] = stats
+        result["message"] = mcp_summary_message(events, stats)
         return result
 
     def memory_status(self) -> dict:
@@ -476,7 +548,11 @@ class DashboardRepository:
             else ""
         )
         prompt_column = "t.last_prompt" if self.has("turn_state") else "NULL"
-        conditions, parameters = session_conditions(query, self.has("turn_state"))
+        conditions, parameters = session_conditions(
+            query,
+            self.has("turn_state"),
+            has_events=self.has("conversation_events"),
+        )
         order = (
             "COALESCE(s.last_heartbeat_at, s.updated_at) DESC"
             if recent
@@ -499,11 +575,17 @@ class DashboardRepository:
             if self.has("compact_events")
             else "0"
         )
+        session_columns = table_columns(self.connection, "sessions") if self.has("sessions") else set()
+        summary_column = (
+            "s.summary"
+            if "summary" in session_columns
+            else "NULL AS summary"
+        )
         data = rows(
             self.connection,
             f"""
-            SELECT s.conversation_id, s.parent_conversation_id, s.title, s.status,
-                   s.model, s.composer_mode, s.is_background, s.transcript_path,
+            SELECT s.conversation_id, s.parent_conversation_id, s.title, {summary_column},
+                   s.status, s.model, s.composer_mode, s.is_background, s.transcript_path,
                    s.last_generation_id, s.last_heartbeat_at, s.created_at, s.updated_at,
                    {prompt_column} AS last_prompt,
                    {job_count} AS job_count,
@@ -515,6 +597,12 @@ class DashboardRepository:
             LIMIT ? OFFSET ?
             """,
             (*parameters, limit, query.page.offset),
+        )
+        data = enrich_sessions(
+            self.connection,
+            data,
+            has_events=self.has("conversation_events"),
+            has_jobs=self.has("jobs"),
         )
         return {"data": data, "pagination": query.page.metadata(total)}
 
@@ -942,6 +1030,12 @@ class DashboardRepository:
         )
         if not session:
             return {}
+        session = enrich_session_detail(
+            self.connection,
+            session,
+            has_events=self.has("conversation_events"),
+            has_jobs=self.has("jobs"),
+        )
         events = (
             rows(
                 self.connection,
@@ -967,12 +1061,23 @@ class DashboardRepository:
             ),
             None,
         )
+        usage_rows = self.related_rows("usage_events", conversation_id, "created_at")
+        llm_usage = [
+            row for row in usage_rows if row.get("event_type") != "mcp"
+        ]
+        mcp_threshold = (self.mcp_summary().get("stats") or {}).get("large_threshold")
+        mcp_usage = [
+            self.enrich_mcp_row(row, large_threshold=mcp_threshold)
+            for row in usage_rows
+            if row.get("event_type") == "mcp"
+        ]
         return {
             "data": session,
             "relationships": {
                 "jobs": self.related_rows("jobs", conversation_id, "updated_at"),
                 "events": events,
-                "usage": self.related_rows("usage_events", conversation_id, "created_at"),
+                "usage": llm_usage,
+                "mcp": mcp_usage,
                 "artifacts": self.related_rows("artifacts", conversation_id, "updated_at"),
                 "compactions": self.related_rows("compact_events", conversation_id, "created_at"),
             },
@@ -1000,6 +1105,33 @@ class DashboardRepository:
             return self.enrich_artifacts(data)
         return data
 
+    def enrich_mcp_row(
+        self,
+        row: dict,
+        *,
+        large_threshold: int | None = None,
+    ) -> dict:
+        item = dict(row)
+        meta: dict = {}
+        raw = item.get("metadata_json")
+        if isinstance(raw, str) and raw.strip():
+            try:
+                loaded = json.loads(raw)
+                if isinstance(loaded, dict):
+                    meta = loaded
+            except json.JSONDecodeError:
+                meta = {}
+        item["tool_name"] = meta.get("tool_name") or item.get("input_text")
+        tokens = int(item.get("total_tokens") or item.get("output_tokens") or 0)
+        item["tokens"] = tokens
+        item["budget"] = (
+            meta.get("budget") if meta.get("budget") is not None else meta.get("budget_tokens")
+        )
+        item["tokens_used"] = meta.get("tokens_used")
+        if large_threshold is not None:
+            item["is_large"] = tokens > large_threshold
+        return item
+
     def daily(self, days: int) -> list[dict]:
         start = date.today() - timedelta(days=days - 1)
         calendar = [
@@ -1021,6 +1153,7 @@ class DashboardRepository:
             "pack_tokens": "SUM(COALESCE(token_estimate, 0))",
         })
         self.merge_usage_daily(result, start)
+        self.merge_mcp_daily(result, start)
         for item in result.values():
             item.setdefault("sessions", 0)
             item.setdefault("jobs", 0)
@@ -1038,6 +1171,8 @@ class DashboardRepository:
             item.setdefault("output_tokens", 0)
             item.setdefault("cached_tokens", 0)
             item.setdefault("cost_usd", 0)
+            item.setdefault("mcp_calls", 0)
+            item.setdefault("mcp_tokens", 0)
         return list(result.values())
 
     def merge_daily(
@@ -1108,6 +1243,7 @@ class DashboardRepository:
             ),
             "cost_usd": optional_column("u", "cost_usd", columns, "0"),
         }
+        source_filter = usage_source_sql("u", columns, mcp=False)
         grouped = rows(
             self.connection,
             f"""
@@ -1117,7 +1253,30 @@ class DashboardRepository:
                    SUM({expressions["cached_tokens"]}) AS cached_tokens,
                    SUM({expressions["cost_usd"]}) AS cost_usd
             FROM usage_events u
+            WHERE date(u.created_at) >= date(?) AND {source_filter}
+            GROUP BY date(u.created_at)
+            """,
+            (start.isoformat(),),
+        )
+        for item in grouped:
+            if item["day"] in result:
+                result[item["day"]].update(item)
+
+    def merge_mcp_daily(self, result: dict[str, dict], start: date) -> None:
+        if not self.has("usage_events"):
+            return
+        columns = table_columns(self.connection, "usage_events")
+        if "event_type" not in columns:
+            return
+        token_expr = mcp_token_sql("u", columns)
+        grouped = rows(
+            self.connection,
+            f"""
+            SELECT date(u.created_at) AS day, COUNT(*) AS mcp_calls,
+                   COALESCE(SUM({token_expr}), 0) AS mcp_tokens
+            FROM usage_events u
             WHERE date(u.created_at) >= date(?)
+              AND {usage_source_sql("u", columns, mcp=True)}
             GROUP BY date(u.created_at)
             """,
             (start.isoformat(),),
@@ -1139,7 +1298,14 @@ class DashboardRepository:
 def session_conditions(
     query: CollectionQuery,
     has_turn_state: bool,
+    *,
+    has_events: bool = False,
 ) -> tuple[list[str], list[object]]:
+    from lucid_memories.core.session_metadata import (
+        session_kind_sql_condition,
+        session_origin_sql_condition,
+    )
+
     conditions = []
     parameters: list[object] = []
     if query.text:
@@ -1159,6 +1325,17 @@ def session_conditions(
     if query.model:
         conditions.append("s.model = ?")
         parameters.append(query.model)
+    kind_condition, kind_params = session_kind_sql_condition(query.session_kind)
+    if kind_condition:
+        conditions.append(kind_condition)
+        parameters.extend(kind_params)
+    origin_condition, origin_params = session_origin_sql_condition(
+        query.origin,
+        has_events=has_events,
+    )
+    if origin_condition:
+        conditions.append(origin_condition)
+        parameters.extend(origin_params)
     add_date_conditions(conditions, parameters, "s.updated_at", query)
     return conditions, parameters
 
@@ -1206,6 +1383,94 @@ def truncate_text(value: object, limit: int) -> str | None:
 
 def optional_column(alias: str, column: str, available: set[str], fallback: str = "NULL") -> str:
     return f"{alias}.{column}" if column in available else fallback
+
+
+def percentile(values: list[int], p: float) -> int | None:
+    if not values:
+        return None
+    if len(values) == 1:
+        return values[0]
+    ordered = sorted(values)
+    rank = (len(ordered) - 1) * p / 100
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    if lower == upper:
+        return ordered[lower]
+    weight = rank - lower
+    return round(ordered[lower] + (ordered[upper] - ordered[lower]) * weight)
+
+
+def token_distribution(values: list[int]) -> dict:
+    if not values:
+        return {"sample_size": 0}
+    sample_size = len(values)
+    median = round(statistics.median(values))
+    stats: dict[str, int | str | None] = {
+        "sample_size": sample_size,
+        "mean": round(statistics.mean(values)),
+        "median": median,
+        "p75": percentile(values, 75),
+        "p90": percentile(values, 90),
+        "p95": percentile(values, 95),
+        "max": max(values),
+        "large_threshold": None,
+        "large_label": None,
+    }
+    if sample_size >= 5:
+        stats["large_threshold"] = stats["p90"]
+        stats["large_label"] = "p90 超"
+    elif sample_size >= 2:
+        provisional = max(median * 2, stats["p75"] or median)
+        stats["large_threshold"] = provisional
+        stats["large_label"] = "暫定 (中央値×2)"
+    return stats
+
+
+def mcp_summary_message(events: int, stats: dict) -> str:
+    if not events:
+        return "MCP 利用量の記録はまだありません。"
+    sample_size = int(stats.get("sample_size") or 0)
+    if sample_size < 5:
+        return (
+            "MCP ツール呼び出しの結果サイズを計測しています。"
+            " 記録が 5 件以上になると、p90 ベースの「大きい」判定が安定します。"
+        )
+    threshold = stats.get("large_threshold")
+    return (
+        "MCP ツール呼び出しの結果サイズを計測しています。"
+        f" 平均 {stats.get('mean')} tok、中央値 {stats.get('median')} tok。"
+        f" {threshold} tok 超を大きい ({stats.get('large_label')}) とみなします。"
+    )
+
+
+def usage_source_sql(alias: str, columns: set[str], *, mcp: bool) -> str:
+    if "event_type" not in columns:
+        return "0=1" if mcp else "1=1"
+    if mcp:
+        return f"{alias}.event_type = 'mcp'"
+    return f"COALESCE({alias}.event_type, '') != 'mcp'"
+
+
+def mcp_token_sql(alias: str, columns: set[str]) -> str:
+    if "total_tokens" in columns:
+        return f"COALESCE({alias}.total_tokens, 0)"
+    if "output_tokens" in columns:
+        return f"COALESCE({alias}.output_tokens, 0)"
+    return "0"
+
+
+def mcp_tool_sql(alias: str, columns: set[str]) -> str:
+    parts: list[str] = []
+    if "metadata_json" in columns:
+        parts.append(f"json_extract({alias}.metadata_json, '$.tool_name')")
+    if "input_text" in columns:
+        parts.append(f"{alias}.input_text")
+    if not parts:
+        return "'unknown'"
+    expr = parts[0]
+    for part in parts[1:]:
+        expr = f"COALESCE({expr}, {part})"
+    return f"COALESCE({expr}, 'unknown')"
 
 
 def session_order(sort: str) -> str:

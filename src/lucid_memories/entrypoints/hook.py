@@ -19,6 +19,7 @@ from lucid_memories.core.api import (
     heartbeat,
     job_start,
     job_update,
+    persist_session_summary,
     post_notice,
     record_activity,
     record_usage,
@@ -37,6 +38,7 @@ from lucid_memories.runtime.util import truncate
 SYSTEM_BOOTSTRAP_PROMPT = (
     "[lucid-memories bootstrap]\n"
     "作業開始時に whoami と status を一度呼べ。compact 後は reload。\n"
+    "未分類 workspace では persona_workspace infer → propose し、種別 binding はユーザー confirm 後に有効。\n"
     "ユーザー指示が回ったら search / recall / proposed remember / proposed link は Agent が自動で行う。\n"
     "ユーザー承認は confirm / forbid / archive のみ。他 Agent と共有すべき決定・ポインタは remember。\n"
     "CLI または MCP lucid-memories を使い、生 SQL / 生 Cypher は書かない。"
@@ -234,7 +236,7 @@ def handle_before_submit_prompt(payload: dict[str, Any]) -> dict[str, Any]:
         _record_activity(payload, event_type="beforeSubmitPrompt")
 
     try:
-        injection = persona.get_injection()
+        injection = persona.get_injection(workspace_root=_workspace(payload))
         content = (injection.get("content") or "").strip()
         parts = [SYSTEM_BOOTSTRAP_PROMPT]
         if content:
@@ -478,6 +480,7 @@ def handle_session_end(payload: dict[str, Any]) -> dict[str, Any]:
         ended_reason=payload.get("reason") or payload.get("final_status"),
         generation_id=payload.get("generation_id"),
     )
+    persist_session_summary(cid)
     unbind_current_session(cid)
     release_leases_for_session(cid)
     return {}

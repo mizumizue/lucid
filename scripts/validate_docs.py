@@ -178,6 +178,16 @@ def main() -> int:
                     elif not rid.startswith("REQ-"):
                         errors.append(f"{p}: referenced requirement {rid} has invalid prefix")
 
+        if kind == "requirement":
+            rc = meta.get("requirement_class")
+            if rc not in ["functional", "non_functional"]:
+                errors.append(
+                    f"{p}: requirement_class must be functional or non_functional (got {rc})"
+                )
+            crit = meta.get("criticality", "medium")
+            if crit not in ["high", "medium", "low"]:
+                errors.append(f"{p}: criticality must be high, medium, or low (got {crit})")
+
         if kind == "test_case":
             if meta.get("test_level") not in [
                 "unit",
@@ -187,6 +197,18 @@ def main() -> int:
                 "acceptance",
             ]:
                 errors.append(f"{p}: invalid test_level {meta.get('test_level')}")
+            if meta.get("test_method") not in [
+                "unit_mock",
+                "unit_contract",
+                "property_based",
+                "api_contract",
+                "scenario",
+                "e2e",
+                "performance_load",
+                "security",
+                "exploratory_manual",
+            ]:
+                errors.append(f"{p}: invalid test_method {meta.get('test_method')}")
             if not isinstance(meta.get("verifies"), list):
                 errors.append(f"{p}: test_case verifies is not a list")
             else:

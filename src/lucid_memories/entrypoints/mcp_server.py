@@ -319,11 +319,68 @@ TOOLS = [
             "required": ["action"],
         },
     },
+    {
+        "name": "persona_workspace",
+        "description": "Infer, propose, confirm, override, or edit workspace-scoped persona overlays.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "types",
+                        "infer",
+                        "status",
+                        "propose",
+                        "confirm",
+                        "reject",
+                        "override",
+                        "overlay_set",
+                        "overlay_remove",
+                        "events",
+                    ],
+                },
+                "workspace": {"type": "string"},
+                "type_id": {"type": "string"},
+                "rationale": {"type": "string"},
+                "confidence": {"type": "number"},
+                "proposed_by": {"type": "string"},
+                "section_id": {"type": "string"},
+                "title": {"type": "string"},
+                "content": {"type": "string"},
+                "priority": {"type": "integer"},
+                "limit": {"type": "integer"},
+            },
+            "required": ["action"],
+        },
+    },
 ]
+
+
+def _tool_result_text(result: dict[str, Any]) -> str:
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+def _remember_mcp_usage(name: str, arguments: dict[str, Any], result: dict[str, Any]) -> None:
+    try:
+        api.record_mcp_usage(
+            tool_name=name,
+            arguments=arguments,
+            result=result,
+            result_text=_tool_result_text(result),
+        )
+    except Exception:
+        pass
 
 
 def _call_tool(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
     args = arguments or {}
+    result = _dispatch_tool(name, args)
+    _remember_mcp_usage(name, args, result)
+    return result
+
+
+def _dispatch_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     if name == "whoami":
         return api.whoami(
             workspace=args.get("workspace"),
@@ -543,6 +600,21 @@ def _call_tool(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
         if action == "promote":
             return api.promote_memory_candidate(args.get("candidate_id") or "")
         return {"ok": False, "error": "invalid_action", "action": action}
+    if name == "persona_workspace":
+        return api.persona_workspace(
+            args.get("action") or "",
+            workspace=args.get("workspace"),
+            type_id=args.get("type_id"),
+            rationale=args.get("rationale"),
+            confidence=args.get("confidence"),
+            proposed_by=args.get("proposed_by") or "agent",
+            section_id=args.get("section_id"),
+            title=args.get("title"),
+            content=args.get("content"),
+            priority=int(args.get("priority") or 80),
+            limit=int(args.get("limit") or 20),
+            created_by="mcp",
+        )
     return {"ok": False, "error": "unknown_tool", "name": name}
 
 
@@ -605,16 +677,18 @@ def _handle(msg: dict[str, Any]) -> dict[str, Any] | None:
                 "id": msg_id,
                 "result": {
                     "content": [
-                        {"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}
+                        {"type": "text", "text": _tool_result_text(result)}
                     ]
                 },
             }
         except Exception as exc:
+            failed = {"ok": False, "error": str(exc)}
+            _remember_mcp_usage(name, arguments, failed)
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "result": {
-                    "content": [{"type": "text", "text": json.dumps({"ok": False, "error": str(exc)})}],
+                    "content": [{"type": "text", "text": _tool_result_text(failed)}],
                     "isError": True,
                 },
             }

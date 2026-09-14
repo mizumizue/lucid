@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+# control-lucid — verification harness for lucid-memories (CLI + dashboard API).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [[ -n "${LUCID_MEMORIES_ROOT:-}" ]]; then
+  REPO_ROOT="$LUCID_MEMORIES_ROOT"
+elif [[ -d "$SCRIPT_DIR/../../../src/lucid_memories" ]]; then
+  REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+else
+  REPO_ROOT="$HOME/.cursor/lucid-memories"
+fi
+
+RUN_ID="${RUN_ID:-lucid-$(date +%Y%m%d%H%M%S)-$$}"
+STATE_DIR="${STATE_DIR:-${TMPDIR:-/tmp}/lucid-verify-state-$RUN_ID}"
+LUCID_MEMORIES_HOME="${LUCID_MEMORIES_HOME:-${TMPDIR:-/tmp}/lucid-verify-$RUN_ID}"
+ARTIFACTS_DIR="${ARTIFACTS_DIR:-$REPO_ROOT/test-results/verify-lucid-memories/$RUN_ID}"
+VERIFY_WORKSPACE="${VERIFY_WORKSPACE:-$LUCID_MEMORIES_HOME/ws}"
+VERIFY_SESSION="${VERIFY_SESSION:-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}"
+CLI="$REPO_ROOT/bin/lucid-memories"
+DASHBOARD_HOST="${LUCID_MEMORIES_DASHBOARD_HOST:-127.0.0.1}"
+DASHBOARD_PORT="${LUCID_MEMORIES_DASHBOARD_PORT:-18765}"
+
+export RUN_ID STATE_DIR LUCID_MEMORIES_HOME ARTIFACTS_DIR VERIFY_WORKSPACE VERIFY_SESSION
+export LUCID_MEMORIES_ROOT="$REPO_ROOT"
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
+
+mkdir -p "$STATE_DIR" "$ARTIFACTS_DIR" "$VERIFY_WORKSPACE" "$LUCID_MEMORIES_HOME/persona" "$LUCID_MEMORIES_HOME/.db"
+
+cli() {
+  if [[ $# -lt 1 ]]; then
+    echo "cli: subcommand required" >&2
+    return 2
+  fi
+  local subcmd="$1"
+  shift
+  "$CLI" "$subcmd" --workspace "$VERIFY_WORKSPACE" --session "$VERIFY_SESSION" "$@"
+}
+
+usage() {
+  cat <<EOF
+Usage: control-lucid <command> [args...]
+
+Commands:
+  env-init              Create isolated LUCID_MEMORIES_HOME and seed persona
+  doctor                Read-only health check for this verification instance
+  cli -- <args...>      Run lucid-memories CLI against the verify instance
+  dashboard-start       Start dashboard in background (writes PID to state dir)
+  dashboard-stop        Stop dashboard started by this run (PID file only)
+  api-get <path>        GET http://\$HOST:\$PORT/api/v1/<path> (JSON to stdout)
+  artifacts-dir         Print artifacts directory path
+  state-dir             Print state directory path
+  home-dir              Print LUCID_MEMORIES_HOME path
+EOF
+}
+
+seed_persona() {
+  local rules="$LUCID_MEMORIES_HOME/persona/user-rules.json"
+  if [[ ! -f "$rules" ]]; then
+    cat >"$rules" <<'JSON'
+{
+  "source": "verify-lucid-memories",
+  "rules": [
+    {
+      "id": "verify-language",
+      "title": "Verification language",
+      "content": "Respond in Japanese during verification runs."
+    }
+  ]
+}
+JSON
+  fi
+  PYTHONPATH="$REPO_ROOT/src" python - <<'PY'
+import json
+import os
+from pathlib import Path
+from lucid_memories.core import persona
+
+home = Path(os.environ["LUCID_MEMORIES_HOME"])
+rules = json.loads((home / "persona" / "user-rules.json").read_text(encoding="utf-8"))
+built = persona.build_persona(rules)
+persona.save_persona(built, home / "persona" / "persona.json")
+PY
+}
+
+cmd_env_init() {
+  seed_persona
+  cli status >/dev/null
+  printf '%s\n' "$LUCID_MEMORIES_HOME"
+}
+
+cmd_doctor() {
+  local ok=0
+  echo "run_id=$RUN_ID"
+  echo "home=$LUCID_MEMORIES_HOME"
+  echo "workspace=$VERIFY_WORKSPACE"
+  echo "session=$VERIFY_SESSION"
+  echo "artifacts=$ARTIFACTS_DIR"
+  echo "repo=$REPO_ROOT"
+
+  if [[ ! -x "$CLI" && ! -f "$CLI" ]]; then
+    echo "error: lucid-memories CLI not found at $CLI"
+    ok=1
+  fi
+
+  if ! cli status | python -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('ok') else 1)"; then
+    echo "error: cli status did not return ok"
+    ok=1
+  else
+    echo "cli: ok"
+  fi
+
+  if ! cli persona validate | python -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('ok') else 1)"; then
+    echo "error: persona validate failed"
+    ok=1
+  else
+    echo "persona: ok"
+  fi
+
+  if [[ -f "$STATE_DIR/dashboard.pid" ]]; then
+    local pid
+    pid="$(cat "$STATE_DIR/dashboard.pid")"
+    if kill -0 "$pid" 2>/dev/null; then
+      if curl -fsS "http://$DASHBOARD_HOST:$DASHBOARD_PORT/api/v1/health" >/dev/null 2>&1; then
+        echo "dashboard: ok (pid=$pid port=$DASHBOARD_PORT)"
+      else
+        echo "error: dashboard pid $pid up but /api/v1/health failed"
+        ok=1
+      fi
+    else
+      echo "dashboard: not running (stale pid file)"
+    fi
+  else
+    echo "dashboard: not started"
+  fi
+
+  return "$ok"
+}
+
+cmd_dashboard_start() {
+  if [[ -f "$STATE_DIR/dashboard.pid" ]]; then
+    local pid
+    pid="$(cat "$STATE_DIR/dashboard.pid")"
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "dashboard already running pid=$pid"
+      return 0
+    fi
+  fi
+  export LUCID_MEMORIES_HOME
+  export LUCID_MEMORIES_DB="$LUCID_MEMORIES_HOME/.db/lucid-memories.sqlite"
+  export LUCID_MEMORIES_DASHBOARD_HOST="$DASHBOARD_HOST"
+  export LUCID_MEMORIES_DASHBOARD_PORT="$DASHBOARD_PORT"
+  nohup "$CLI" dashboard start --host "$DASHBOARD_HOST" --port "$DASHBOARD_PORT" \
+    >"$STATE_DIR/dashboard.log" 2>&1 &
+  echo "$!" >"$STATE_DIR/dashboard.pid"
+  for _ in $(seq 1 30); do
+    if curl -fsS "http://$DASHBOARD_HOST:$DASHBOARD_PORT/api/v1/health" >/dev/null 2>&1; then
+      echo "dashboard ready pid=$(cat "$STATE_DIR/dashboard.pid") url=http://$DASHBOARD_HOST:$DASHBOARD_PORT/"
+      return 0
+    fi
+    sleep 0.2
+  done
+  echo "error: dashboard did not become ready; see $STATE_DIR/dashboard.log"
+  return 1
+}
+
+cmd_dashboard_stop() {
+  if [[ ! -f "$STATE_DIR/dashboard.pid" ]]; then
+    return 0
+  fi
+  local pid
+  pid="$(cat "$STATE_DIR/dashboard.pid")"
+  if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  fi
+  rm -f "$STATE_DIR/dashboard.pid"
+}
+
+cmd_api_get() {
+  local path="${1:-health}"
+  path="${path#/}"
+  curl -fsS "http://$DASHBOARD_HOST:$DASHBOARD_PORT/api/v1/$path"
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+  case "$cmd" in
+    env-init) cmd_env_init "$@" ;;
+    doctor) cmd_doctor "$@" ;;
+    cli)
+      shift || true
+      cli "$@"
+      ;;
+    dashboard-start) cmd_dashboard_start "$@" ;;
+    dashboard-stop) cmd_dashboard_stop "$@" ;;
+    api-get) cmd_api_get "$@" ;;
+    artifacts-dir) printf '%s\n' "$ARTIFACTS_DIR" ;;
+    state-dir) printf '%s\n' "$STATE_DIR" ;;
+    home-dir) printf '%s\n' "$LUCID_MEMORIES_HOME" ;;
+    -h|--help|help|"") usage ;;
+    *) echo "unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+  esac
+}
+
+main "$@"

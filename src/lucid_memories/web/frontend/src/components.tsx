@@ -1,7 +1,17 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { formatDate, formatNumber, shortId, statusClass } from "./format";
+import {
+  formatDate,
+  formatNumber,
+  sessionKindClass,
+  sessionKindLabel,
+  sessionOriginClass,
+  sessionOriginLabel,
+  shortId,
+  statusClass,
+} from "./format";
+import type { Session } from "./types";
 import { useRefresh, type ResourceState } from "./hooks";
 import { useTheme } from "./theme";
 
@@ -581,21 +591,44 @@ export function StatusBadge({ value }: { value: string | null | undefined }) {
   return <span className={`status-pill ${statusClass(value)}`}>{value || "unknown"}</span>;
 }
 
+export function SessionMetaBadges({ session }: { session: Session }) {
+  const subagentTypes = session.subagent_types || [];
+  return (
+    <div className="session-meta-badges">
+      {session.session_kind && (
+        <span className={`status-pill ${sessionKindClass(session.session_kind)}`}>
+          {sessionKindLabel(session.session_kind)}
+        </span>
+      )}
+      {session.origin && (
+        <span className={`status-pill ${sessionOriginClass(session.origin)}`}>
+          {sessionOriginLabel(session.origin)}
+        </span>
+      )}
+      {subagentTypes.map((type) => (
+        <span className="status-pill session-subagent-pill" key={type}>{type}</span>
+      ))}
+    </div>
+  );
+}
+
 export function MetricCard({
   label,
   value,
   note,
   tone = "indigo",
+  title,
 }: {
   label: string;
   value: string | number;
   note: string;
   tone?: "indigo" | "mint" | "coral" | "yellow";
+  title?: string;
 }) {
   return (
     <div className={`metric metric-${tone}`}>
       <div className="metric-label">{label}</div>
-      <div className="metric-value">{typeof value === "number" ? formatNumber(value) : value}</div>
+      <div className="metric-value" title={title}>{typeof value === "number" ? formatNumber(value) : value}</div>
       <div className="metric-trend">
         <strong>●</strong> {note}
       </div>

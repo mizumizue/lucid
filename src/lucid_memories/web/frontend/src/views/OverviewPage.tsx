@@ -7,12 +7,13 @@ import {
   Panel,
   PanelHeading,
   ResourceState,
+  SessionMetaBadges,
   StatusBadge,
   ViewIntro,
 } from "../components";
-import { formatCost, formatDate, formatNumber, sessionDisplayTitle, shortId } from "../format";
+import { formatCompactNumber, formatCost, formatDate, formatNumber, formatTokenCount, sessionDisplayTitle, shortId, truncate } from "../format";
 import { useRefresh, useResource } from "../hooks";
-import type { DailyPoint } from "../types";
+import type { DailyPoint, McpSummary } from "../types";
 
 export function OverviewPage() {
   const { revision } = useRefresh();
@@ -22,7 +23,7 @@ export function OverviewPage() {
   return (
     <div className="view">
       <ViewIntro
-        description="Cursor 上の会話セッション、ジョブキュー、コンパクション、想起ログの健全性をリアルタイムに可視化します。"
+        description="Cursor 上の会話セッション、ジョブキュー、コンパクション、想起ログ、MCP 利用量の健全性をリアルタイムに可視化します。"
         kicker="REAL-TIME MEMORY BUS"
         title="エージェント記憶と実行状況の統合ダッシュボード"
       />
@@ -36,11 +37,12 @@ export function OverviewPage() {
                 label="入力トークン"
                 note={data.usage.status === "available" ? `計測イベント ${formatNumber(data.usage.events)} 件` : data.usage.status}
                 tone="coral"
-                value={data.usage.status === "available" ? formatNumber(data.usage.input_tokens) : "—"}
+                title={data.usage.status === "available" ? `${formatNumber(data.usage.input_tokens)} tok` : undefined}
+                value={data.usage.status === "available" ? formatTokenCount(data.usage.input_tokens) : "—"}
               />
               <MetricCard
                 label="推定コスト (USD)"
-                note={data.usage.status === "available" ? `出力 ${formatNumber(data.usage.output_tokens)} tokens` : data.usage.status}
+                note={data.usage.status === "available" ? `出力 ${formatTokenCount(data.usage.output_tokens)}` : data.usage.status}
                 tone="yellow"
                 value={data.usage.status === "available" ? formatCost(data.usage.cost_usd) : "—"}
               />
@@ -51,6 +53,12 @@ export function OverviewPage() {
                 <ActivityChart days={daily.data?.data || []} />
               </Panel>
               <Panel>
+                <PanelHeading kicker="MCP USAGE" title="MCP 利用量" />
+                <McpUsagePanel mcp={data.mcp} />
+              </Panel>
+            </div>
+            <div className="content-grid">
+              <Panel className="wide-panel">
                 <PanelHeading kicker="DISTRIBUTION" title="モデル利用比率" />
                 <div className="model-list">
                   {data.models.length ? data.models.slice(0, 6).map((model, index) => {
@@ -71,7 +79,14 @@ export function OverviewPage() {
                 <div className="session-list">
                   {data.recent_sessions.length ? data.recent_sessions.map((session) => (
                     <Link className="session-row" key={session.conversation_id} to={`/sessions/${encodeURIComponent(session.conversation_id)}`}>
-                      <div><strong>{sessionDisplayTitle(session.title, session.last_prompt, session.conversation_id)}</strong><small>{shortId(session.conversation_id)}</small></div>
+                      <div className="session-row-main">
+                        <strong>{sessionDisplayTitle(session.title, session.last_prompt, session.conversation_id, session.brief)}</strong>
+                        <small className="mono">{shortId(session.conversation_id)}</small>
+                        <SessionMetaBadges session={session} />
+                        {(session.brief || session.last_prompt) && (
+                          <p className="session-brief">{truncate(session.brief || session.last_prompt, 120)}</p>
+                        )}
+                      </div>
                       <span className="session-model">{session.model || "未記録"}</span>
                       <StatusBadge value={session.status} />
                       <DateCell value={session.last_heartbeat_at || session.updated_at} />
@@ -110,7 +125,7 @@ export function OverviewPage() {
                   <div className="status-summary">
                     <div className="status-summary-row"><span>Scope</span><strong>{data.persona.scope || "未設定"}</strong></div>
                     <StatusSummaryRow label="Sections" value={data.persona.sections} />
-                    <StatusSummaryRow label="Token estimate" value={data.persona.token_estimate ?? undefined} suffix={data.persona.token_budget ? `/ ${formatNumber(data.persona.token_budget)}` : ""} />
+                    <StatusSummaryRow compact label="Token estimate" suffix={data.persona.token_budget ? `/ ${formatTokenCount(data.persona.token_budget)}` : "tok"} value={data.persona.token_estimate ?? undefined} />
                     <StatusSummaryRow label="Pending candidates" value={data.persona.candidates.counts.pending} />
                     <p className="muted">{data.persona.message}</p>
                   </div>
@@ -141,7 +156,7 @@ export function OverviewPage() {
                   <StatusSummaryRow label="提案中の関係エッジ" value={proposedEdgeCount(data.map?.relation_counts)} />
                   <StatusSummaryRow label="想起ヒット率" value={data.retrieval?.hit_rate == null ? undefined : Math.round(data.retrieval.hit_rate * 100)} suffix={data.retrieval?.hit_rate == null ? "—" : "%"} />
                   <StatusSummaryRow label="永続化Blob" value={data.storage?.blobs.count} suffix={data.storage?.blobs.available ? "blobs" : "未保存"} />
-                  <StatusSummaryRow label="Relayパック容量" value={data.context?.token_estimate} suffix={data.context?.available ? "tokens" : "未生成"} />
+                  <StatusSummaryRow label="Relayパック容量" value={data.context?.token_estimate} compact suffix={data.context?.available ? "tok" : "未生成"} />
                 </div>
               </Panel>
             </div>
@@ -153,19 +168,58 @@ export function OverviewPage() {
   );
 }
 
+function McpUsagePanel({ mcp }: { mcp: McpSummary }) {
+  if (!mcp.events) {
+    return <EmptyState message={mcp.message || "MCP 利用量の記録はまだありません。"} />;
+  }
+  const stats = mcp.stats;
+  const total = Math.max(1, mcp.tokens, ...mcp.by_tool.map((item) => item.tokens));
+  return (
+    <>
+      <div className="status-summary">
+        <StatusSummaryRow label="呼び出し" value={mcp.events} />
+        <StatusSummaryRow compact label="結果トークン" suffix="tok" value={mcp.tokens} />
+        {stats?.mean != null && <StatusSummaryRow compact label="平均" suffix="tok" value={stats.mean} />}
+        {stats?.median != null && <StatusSummaryRow compact label="中央値" suffix="tok" value={stats.median} />}
+        {stats?.p90 != null && stats.sample_size >= 5 && <StatusSummaryRow compact label="p90" suffix="tok" value={stats.p90} />}
+        {stats?.large_threshold != null && (
+          <StatusSummaryRow compact label="大きい目安" suffix={stats.large_label ? `tok (${stats.large_label})` : "tok"} value={stats.large_threshold} />
+        )}
+      </div>
+      <div className="model-list">
+        {mcp.by_tool.slice(0, 6).map((item, index) => (
+          <div className="model-row" key={item.tool}>
+            <div className="model-top">
+              <span>{item.tool}</span>
+              <span className="model-count">{formatTokenCount(item.tokens)} · {formatNumber(item.events)}</span>
+            </div>
+            <div className="model-track">
+              <div className={`model-fill fill-${index % 3}`} style={{ width: `${item.tokens / total * 100}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="muted">{mcp.message}</p>
+    </>
+  );
+}
+
 function StatusSummaryRow({
   label,
   value,
   suffix,
+  compact = false,
 }: {
   label: string;
   value?: number;
   suffix?: string;
+  compact?: boolean;
 }) {
+  const formatted = value == null ? "—" : compact ? formatCompactNumber(value) : formatNumber(value);
   return (
     <div className="status-summary-row">
       <span>{label}</span>
-      <strong>{value == null ? "—" : formatNumber(value)} {suffix || ""}</strong>
+      <strong title={value == null ? undefined : formatNumber(value)}>{formatted} {suffix || ""}</strong>
     </div>
   );
 }

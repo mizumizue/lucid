@@ -87,6 +87,53 @@ class EmbeddingTests(unittest.TestCase):
         self.assertEqual(row["dimensions"], 2)
         self.assertEqual(row["bytes"], 8)
 
+    def test_embedding_status_reports_indexed_count_and_search_ms(self) -> None:
+        with (
+            patch.object(self.embedding, "embed", side_effect=self.fake_embed),
+            patch.object(self.embedding, "model", return_value="fixture"),
+        ):
+            self.api.remember(
+                "SQLite vector store",
+                "SQLite stores embedding vectors.",
+                kind="fact",
+                scope="workspace",
+                workspace=self.ws,
+                conversation_id=self.cid,
+            )
+            search = self.api.semantic_search(
+                "SQLite embeddings",
+                workspace=self.ws,
+                min_score=0.1,
+            )
+            status = self.api.embedding_status()
+
+        self.assertTrue(search["ok"], search)
+        self.assertTrue(status["ok"], status)
+        self.assertGreaterEqual(status["indexed_count"], 1)
+        self.assertIsNotNone(status["last_search_ms"])
+        self.assertEqual(status["soft_limit"], 2000)
+        self.assertIsNone(status["warning"])
+
+    def test_embedding_status_warns_above_soft_limit(self) -> None:
+        from lucid_memories.core import embedding_ops
+
+        with (
+            patch.object(self.embedding, "embed", side_effect=self.fake_embed),
+            patch.object(self.embedding, "model", return_value="fixture"),
+            patch.object(embedding_ops, "INDEXED_SOFT_LIMIT", 0),
+        ):
+            self.api.remember(
+                "SQLite vector store",
+                "SQLite stores embedding vectors.",
+                kind="fact",
+                scope="workspace",
+                workspace=self.ws,
+                conversation_id=self.cid,
+            )
+            status = self.api.embedding_status()
+        self.assertIsNotNone(status["warning"])
+        self.assertIn("soft limit", status["warning"])
+
     def test_unavailable_provider_does_not_block_remember(self) -> None:
         with patch.object(
             self.embedding,

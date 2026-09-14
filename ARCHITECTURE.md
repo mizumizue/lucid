@@ -57,12 +57,12 @@
 │   │  - Directive / Procedure / Material / Topic / Context ノード    │
 │   │  - TRIGGERS / USES / ABOUT / IN_CONTEXT / RELATED エッジ        │
 │   └──────────┬────────────────────────────────────────────┬─────────┘
-│              │ (Primary Graph Engine)                     │ (Fallback)
+│              │ (Edge store)                               │ (Node index)
 │              ▼                                            ▼
 │   ┌───────────────────────────┐           ┌─────────────────────────┐
 │   │   runtime/ladybug_runtime │           │  storage/db.py (SQLite) │
-│   │   - Ladybug DB (map.lbdb) │           │  - ontology_nodes       │
-│   │   - Cypher クエリ実行     │           │  - ontology_edges       │
+│   │   - Ladybug DB (map.lbdb) │           │  - ontology_nodes + FTS │
+│   │   - Cypher エッジ・探索   │           │  - ノードメタデータ正本 │
 │   └───────────────────────────┘           └──────────────┬──────────┘
 │                                                          │
 │   ┌───────────────────────────┐                          │
@@ -142,9 +142,10 @@
   - `ABOUT` (`*` → `Topic`): 各ノードがどの話題に関するものか
   - `IN_CONTEXT` (`*` → `Context`): 各ノードがどの文脈下にあるか
   - `RELATED` (`*` → `*`): 汎用的な関連（`sense`, `label` を付与）
-- **ハイブリッドグラフ基盤**:
-  - プライマリ: `Ladybug DB` (`map.lbdb`) による Cypher クエリ実行
-  - フォールバック: Ladybug 未インストール環境では SQLite 内の `ontology_nodes` / `ontology_edges` テーブルで透過的に代替動作
+- **ハイブリッドグラフ基盤**（ADR-0011）:
+  - ノード正本: SQLite `ontology_nodes` + FTS（解決・メタデータ）
+  - エッジ正本: `Ladybug DB` (`map.lbdb`) による Cypher クエリ（`link`, `recall`, `confirm`）
+  - Ladybug は必須依存。エッジの SQLite フォールバックはない
 
 ### 4.3 ハイブリッド検索パイプライン (Retrieval Pipeline)
 

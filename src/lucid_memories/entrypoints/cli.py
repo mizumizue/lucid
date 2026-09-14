@@ -233,6 +233,32 @@ def main(argv: list[str] | None = None) -> int:
     p_persona_rollback.add_argument("revision_id")
     p_persona_reject = persona_sub.add_parser("reject")
     p_persona_reject.add_argument("candidate_id")
+    p_persona_workspace = persona_sub.add_parser("workspace")
+    workspace_sub = p_persona_workspace.add_subparsers(dest="workspace_cmd", required=True)
+    workspace_shared = argparse.ArgumentParser(add_help=False)
+    workspace_shared.add_argument("--workspace", default=None)
+    workspace_sub.add_parser("types")
+    workspace_sub.add_parser("infer", parents=[workspace_shared])
+    workspace_sub.add_parser("status", parents=[workspace_shared])
+    p_ws_propose = workspace_sub.add_parser("propose", parents=[workspace_shared])
+    p_ws_propose.add_argument("--type", dest="type_id", required=True)
+    p_ws_propose.add_argument("--rationale", required=True)
+    p_ws_propose.add_argument("--confidence", type=float, default=None)
+    p_ws_propose.add_argument("--proposed-by", dest="proposed_by", default="agent")
+    p_ws_confirm = workspace_sub.add_parser("confirm", parents=[workspace_shared])
+    p_ws_confirm.add_argument("--type", dest="type_id", default=None)
+    workspace_sub.add_parser("reject", parents=[workspace_shared])
+    p_ws_override = workspace_sub.add_parser("override", parents=[workspace_shared])
+    p_ws_override.add_argument("--type", dest="type_id", required=True)
+    p_ws_overlay_set = workspace_sub.add_parser("overlay-set", parents=[workspace_shared])
+    p_ws_overlay_set.add_argument("--id", dest="section_id", required=True)
+    p_ws_overlay_set.add_argument("--title", required=True)
+    p_ws_overlay_set.add_argument("--body", required=True)
+    p_ws_overlay_set.add_argument("--priority", type=int, default=80)
+    p_ws_overlay_remove = workspace_sub.add_parser("overlay-remove", parents=[workspace_shared])
+    p_ws_overlay_remove.add_argument("--id", dest="section_id", required=True)
+    p_ws_events = workspace_sub.add_parser("events", parents=[workspace_shared])
+    p_ws_events.add_argument("--limit", type=int, default=20)
 
     p_embed = sub.add_parser("embed", parents=[shared])
     embed_sub = p_embed.add_subparsers(dest="embed_cmd", required=True)
@@ -522,6 +548,36 @@ def main(argv: list[str] | None = None) -> int:
             _print(api.persona_rollback(args.revision_id))
         elif args.persona_cmd == "reject":
             _print(api.persona_reject(args.candidate_id))
+        elif args.persona_cmd == "workspace":
+            workspace = args.workspace or ws
+            action_map = {
+                "types": "types",
+                "infer": "infer",
+                "status": "status",
+                "propose": "propose",
+                "confirm": "confirm",
+                "reject": "reject",
+                "override": "override",
+                "overlay-set": "overlay_set",
+                "overlay-remove": "overlay_remove",
+                "events": "events",
+            }
+            _print(
+                api.persona_workspace(
+                    action_map[args.workspace_cmd],
+                    workspace=workspace,
+                    type_id=getattr(args, "type_id", None),
+                    rationale=getattr(args, "rationale", None),
+                    confidence=getattr(args, "confidence", None),
+                    proposed_by=getattr(args, "proposed_by", "agent"),
+                    section_id=getattr(args, "section_id", None),
+                    title=getattr(args, "title", None),
+                    content=getattr(args, "body", None),
+                    priority=getattr(args, "priority", 80),
+                    limit=getattr(args, "limit", 20),
+                    created_by="cli",
+                )
+            )
     elif cmd == "embed":
         if args.embed_cmd == "status":
             _print(api.embedding_status())

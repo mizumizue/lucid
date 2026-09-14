@@ -40,7 +40,9 @@ logs/
 
 # User-specific persistent persona & rules (auto-generated at setup)
 persona/*.json
+persona/types/*.json
 !persona/.gitkeep
+!persona/types/.gitkeep
 
 # Sensitive personal & environment credentials (never track in git)
 .env

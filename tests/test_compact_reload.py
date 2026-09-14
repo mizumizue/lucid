@@ -130,7 +130,10 @@ class CompactReloadTests(unittest.TestCase):
         self.assertIsNone(unbound["conversation_id"])
 
     def test_whoami_does_not_fallback_to_stale_session(self) -> None:
-        with patch.object(self.api, "is_stale_heartbeat", return_value=True):
+        with patch(
+            "lucid_memories.core.identity_ops.is_stale_heartbeat",
+            return_value=True,
+        ):
             me = self.api.whoami(workspace=self.ws)
         self.assertIsNone(me["conversation_id"])
         self.assertFalse(me["ambiguous"])

@@ -1,4 +1,4 @@
--- lucid-memories schema v14
+-- lucid-memories schema v16
 -- turn_state: 直近のユーザー指示。hook が search/recall を先に走らせる。
 -- retrieval_logs: 指示ごとの search/recall。digest が評価し、欠けは proposed link で埋める。
 PRAGMA foreign_keys = ON;
@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   model TEXT,
   transcript_path TEXT,
   title TEXT,
+  summary TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   last_generation_id TEXT,
   last_heartbeat_at TEXT,
@@ -481,3 +482,36 @@ CREATE TABLE IF NOT EXISTS persona_revisions (
 
 CREATE INDEX IF NOT EXISTS idx_persona_revisions_created
   ON persona_revisions(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS workspace_persona_bindings (
+  workspace_root TEXT PRIMARY KEY,
+  type_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  rationale TEXT,
+  confidence REAL,
+  proposed_by TEXT NOT NULL DEFAULT 'agent',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_persona_bindings_status
+  ON workspace_persona_bindings(status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS workspace_persona_overlays (
+  workspace_root TEXT PRIMARY KEY,
+  sections_json TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS workspace_persona_binding_events (
+  id TEXT PRIMARY KEY,
+  workspace_root TEXT NOT NULL,
+  action TEXT NOT NULL,
+  before_json TEXT,
+  after_json TEXT,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_persona_binding_events_ws
+  ON workspace_persona_binding_events(workspace_root, created_at DESC);

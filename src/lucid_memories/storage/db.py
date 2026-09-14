@@ -121,6 +121,16 @@ def migrate(conn: sqlite3.Connection) -> None:
     _ensure_memory_schema(conn)
     _ensure_artifact_storage_schema(conn)
     _ensure_persona_schema(conn)
+    _ensure_workspace_persona_schema(conn)
+    _ensure_session_summary_schema(conn)
+
+
+def _ensure_session_summary_schema(conn: sqlite3.Connection) -> None:
+    columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
+    }
+    if columns and "summary" not in columns:
+        conn.execute("ALTER TABLE sessions ADD COLUMN summary TEXT")
 
 
 def _ensure_memory_schema(conn: sqlite3.Connection) -> None:
@@ -282,6 +292,42 @@ def _ensure_persona_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_persona_revisions_created
           ON persona_revisions(created_at DESC);
+        """
+    )
+
+
+def _ensure_workspace_persona_schema(conn: sqlite3.Connection) -> None:
+    """Create workspace persona tables for existing databases."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS workspace_persona_bindings (
+          workspace_root TEXT PRIMARY KEY,
+          type_id TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          rationale TEXT,
+          confidence REAL,
+          proposed_by TEXT NOT NULL DEFAULT 'agent',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_workspace_persona_bindings_status
+          ON workspace_persona_bindings(status, updated_at DESC);
+        CREATE TABLE IF NOT EXISTS workspace_persona_overlays (
+          workspace_root TEXT PRIMARY KEY,
+          sections_json TEXT NOT NULL DEFAULT '[]',
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS workspace_persona_binding_events (
+          id TEXT PRIMARY KEY,
+          workspace_root TEXT NOT NULL,
+          action TEXT NOT NULL,
+          before_json TEXT,
+          after_json TEXT,
+          created_at TEXT NOT NULL,
+          created_by TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_workspace_persona_binding_events_ws
+          ON workspace_persona_binding_events(workspace_root, created_at DESC);
         """
     )
 
